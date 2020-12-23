@@ -1,4 +1,8 @@
-# Key-Value Design
+# Database Notes
+Just some notes from my research into database design.
+This document will grow as I look into various aspects of db design more.
+
+## Key-Value Design
 <img src="./images/kv.png" width="360">  
 
 ## Key-Value Operations
@@ -47,6 +51,7 @@ Table from [here](https://www.freecodecamp.org/news/design-a-key-value-store-in-
 </table>  
 
 ## ACID Properties
+Kagi will most likely not be a transcational db, but this was an interesting read regardless.  
 Considering a transaction as a function T:  
 `
 T(s, A) -> s'
