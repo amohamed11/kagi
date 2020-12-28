@@ -1,16 +1,13 @@
 package kagi
 
+import "fmt"
+
 const (
 	NodeSize   int32 = 4096
 	IntSize    int32 = 4
 	FlagSize   int32 = 2
 	HeaderSize int32 = 4074 // 4096 - (2 * 1) - (4 * 5)
 )
-
-type Header struct {
-	degree     int32
-	rootOffset uint32
-}
 
 type Node struct {
 	// On disk data
@@ -74,6 +71,7 @@ func NodeFromBytes(b []byte) *Node {
 	offset += IntSize
 	node.key = string(b[offset : offset+node.keySize])
 	offset += node.keySize
+	fmt.Printf("from bytes, key: %s, keySize: %d\n", node.key, node.keySize)
 
 	// offsets
 	node.offset = Uint32FromBytes(b[offset : offset+IntSize])
@@ -114,8 +112,8 @@ func (n *Node) toBytes() []byte {
 	b = append(b, BytesFromUint32(n.numChildren)...)
 
 	// key
-	b = append(b, n.key...)
 	b = append(b, BytesFromUint32(uint32(n.keySize))...)
+	b = append(b, n.key...)
 
 	// offsets
 	b = append(b, BytesFromUint32(n.offset)...)
@@ -132,7 +130,7 @@ func (n *Node) toBytes() []byte {
 }
 
 func (l *Leaf) toBytes(keySize int32) []byte {
-	size := NodeSize - int32(keySize)
+	size := NodeSize - HeaderSize - int32(keySize)
 	b := make([]byte, size)
 
 	b = append(b, BytesFromUint32(uint32(l.valueSize))...)

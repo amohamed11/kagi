@@ -2,10 +2,9 @@ package kagi
 
 import "fmt"
 
-func (db *DB_CONNECTION) setRootNode(b []byte) {
-	root := NodeFromBytes(b)
-	db.root = root
-	db.count = int(root.numChildren) + 1
+func (db *DB_CONNECTION) setRootNode() {
+	db.root = db.getNodeAt(0)
+	db.count = int(db.root.numChildren) + 1
 }
 
 func (db *DB_CONNECTION) createRootNode(k string, v string) {
@@ -54,8 +53,10 @@ func (db *DB_CONNECTION) insertNodeAt(n *Node, parent *Node) {
 	parent.numChildren += uint32(1)
 
 	// update parent node
+	// fmt.Printf("key: %s, offset: %d, parentOffset: %d\n", n.key, n.offset, parent.offset)
 	db.writeNodeToFile(parent)
 	db.writeNodeToFile(n)
+	db.count += 1
 }
 
 func (db *DB_CONNECTION) findLeaf(k string) (*Node, error) {
@@ -70,16 +71,19 @@ func (db *DB_CONNECTION) findLeaf(k string) (*Node, error) {
 
 // recursively traverse tree till we find leaf
 func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
-	fmt.Printf("found: %s, wanted: %s\n", currentNode.key, k)
+	// fmt.Printf("found: %s, wanted: %s\n", currentNode.key, k)
 	if currentNode.numChildren == 0 {
 		return currentNode
 	}
 
 	nextNode := &Node{}
+	fmt.Printf("right: %d, left: %d\n", currentNode.rightChildOffset, currentNode.leftChildOffset)
 	if k > currentNode.key && currentNode.rightChildOffset > 0 {
 		nextNode = db.getNodeAt(currentNode.rightChildOffset)
 	} else if k < currentNode.key && currentNode.leftChildOffset > 0 {
 		nextNode = db.getNodeAt(currentNode.leftChildOffset)
+	} else {
+		return currentNode
 	}
 
 	return db.searchNode(k, nextNode)
@@ -102,8 +106,7 @@ func (db *DB_CONNECTION) getNodeAt(offset uint32) *Node {
 	_, err1 := db.file.Seek(int64(offset), 0)
 	Check(err1)
 
-	size, err2 := db.file.Read(b)
-	fmt.Printf("read %d bytes\n", size)
+	_, err2 := db.file.Read(b)
 	Check(err2)
 
 	db.Unlock()
@@ -123,7 +126,6 @@ func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
 	if written < int(NodeSize) {
 		Check(ERROR_WRITING_NODE)
 	}
-	db.count += 1
 
 	db.Unlock()
 }

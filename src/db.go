@@ -23,10 +23,7 @@ func Open(path string) *DB_CONNECTION {
 	Check(err2)
 
 	if fileInfo.Size() != 0 {
-		headerBytes := make([]byte, NodeSize)
-		_, err3 := file.Read(headerBytes)
-		Check(err3)
-		db.setRootNode(headerBytes)
+		db.setRootNode()
 	}
 
 	return db

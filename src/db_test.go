@@ -44,9 +44,9 @@ func TestGet1Key(t *testing.T) {
 	err := db.Set(k, v)
 	Check(err)
 
-	value, err := db.Get(k)
-	Check(err)
-	if value != "world" {
-		t.Errorf(`actual: "%s", expected: "world"`, value)
+	found, err := db.Get(k)
+	if found != v {
+		t.Error(err)
+		t.Errorf(`actual: "%s", expected: "%s"`, found, v)
 	}
 }
