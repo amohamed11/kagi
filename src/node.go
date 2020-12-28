@@ -1,10 +1,10 @@
 package kagi
 
 const (
-	NodeSize   int16 = 8192
-	IntSize    int8  = 4
-	FlagSize   int8  = 1
-	HeaderSize       = 8170 // 8192 - (2 * 1) - (4 * 5)
+	NodeSize   int32 = 8192
+	IntSize    int32 = 4
+	FlagSize   int32 = 1
+	HeaderSize int32 = 8170 // 8192 - (2 * 1) - (4 * 5)
 )
 
 type Header struct {
@@ -15,8 +15,8 @@ type Header struct {
 type Node struct {
 	// On disk data
 	// Flags
-	isRoot    bool
-	isDeleted bool
+	isRoot    uint16
+	isDeleted uint16
 
 	// Counts
 	numChildren uint32
@@ -28,7 +28,7 @@ type Node struct {
 	rightChildOffset uint32
 
 	// key
-	keySize uint32
+	keySize int32
 	key     string
 
 	// value
@@ -39,68 +39,66 @@ type Node struct {
 type Leaf struct {
 	// On disk value
 	value     string
-	valueSize uint32
+	valueSize int32
 
 	// space left in node after value
-	freeSpace uint32
+	freeSpace int32
 }
 
-func NewLeaf(v string, keySize int) *Leaf {
+func NewLeaf(v string, keySize int32) *Leaf {
 	l := &Leaf{}
 
 	l.value = v
-	l.valueSize = len(v)
+	l.valueSize = int32(len(v))
 	l.freeSpace = NodeSize - HeaderSize - keySize - l.valueSize
 
 	return l
 }
 
 func NodeFromBytes(b []byte) *Node {
-	offset := 0
+	offset := int32(0)
 	node := &Node{}
 
 	// flags
-	node.isLeaf = b[offset:FlagSize]
+	node.isRoot = Uint16FromBytes(b[offset:])
 	offset += FlagSize
-	node.isRoot = b[offset:FlagSize]
-	offset += FlagSize
-	node.isDeleted = b[offset:FlagSize]
+	node.isDeleted = Uint16FromBytes(b[offset:])
 	offset += FlagSize
 
 	// count
-	node.numChildren = IntFromBytes(b[offset:IntSize])
+	node.numChildren = Uint32FromBytes(b[offset:])
 	offset += IntSize
 
 	// key
-	node.keySize = IntFromBytes(b[offset:IntSize])
+	node.keySize = int32(Uint32FromBytes(b[offset:]))
 	offset += IntSize
 	node.key = string(b[offset:node.keySize])
 	offset += node.keySize
 
 	// offsets
-	node.offset = IntFromBytes(b[offset:IntSize])
+	node.offset = Uint32FromBytes(b[offset:])
 	offset += IntSize
-	node.parentOffset = IntFromBytes(b[offset:IntSize])
+	node.parentOffset = Uint32FromBytes(b[offset:])
 	offset += IntSize
-	node.leftChildOffset = IntFromBytes(b[offset:IntSize])
+	node.leftChildOffset = Uint32FromBytes(b[offset:])
 	offset += IntSize
-	node.rightChildOffset = IntFromBytes(b[offset:IntSize])
+	node.rightChildOffset = Uint32FromBytes(b[offset:])
 	offset += IntSize
 
 	// adding children offsets
 	node.leaf = LeafFromBytes(b[offset:], offset)
 
-	return Node
+	return node
 }
 
-func LeafFromBytes(b []byte, nonLeafOffset int) *Leaf {
-	offset := 0
+func LeafFromBytes(b []byte, nonLeafOffset int32) *Leaf {
+	offset := int32(0)
 	leaf := &Leaf{}
 
-	leaf.valueSize = IntFromBytes(b[offset:IntSize])
+	leaf.valueSize = int32(Uint32FromBytes(b[offset:]))
 	offset += IntSize
-	leaf.value = string(b[offset:leaf.valueSize])
-	leaf.freeSpace = NodeSize - nonLeafOffset - leaf.valueSize
+	leaf.value = string(b[offset:])
+	leaf.freeSpace = NodeSize - nonLeafOffset - int32(leaf.valueSize)
 
 	return leaf
 }
@@ -109,33 +107,36 @@ func (n *Node) toBytes() []byte {
 	b := make([]byte, NodeSize)
 
 	// flags
-	b = append(b, n.isRoot)
-	b = append(b, n.isDeleted)
+	b = append(b, BytesFromUint16(n.isRoot)...)
+	b = append(b, BytesFromUint16(n.isDeleted)...)
 
 	// count
-	b = append(b, BytesFromInt(n.numChildren))
+	b = append(b, BytesFromUint32(n.numChildren)...)
 
 	// key
-	b = append(b, l.key)
-	b = append(b, BytesFromInt(l.keySize))
+	b = append(b, n.key...)
+	b = append(b, BytesFromUint32(uint32(n.keySize))...)
 
 	// offsets
-	b = append(b, BytesFromInt(n.offset))
-	b = append(b, BytesFromInt(n.parentOffset))
-	b = append(b, BytesFromInt(n.leftChildOffset))
-	b = append(b, BytesFromInt(n.rightChildOffset))
+	b = append(b, BytesFromUint32(n.offset)...)
+	b = append(b, BytesFromUint32(n.parentOffset)...)
+	b = append(b, BytesFromUint32(n.leftChildOffset)...)
+	b = append(b, BytesFromUint32(n.rightChildOffset)...)
 
 	// leaf
 	if checkHasLeaf(n) {
-		b = append(b, l.toBytes())
+		b = append(b, n.leaf.toBytes(n.keySize)...)
 	}
+
+	return b
 }
 
-func (l *Leaf) toBytes() []byte {
-	b := make([]byte, LeafSize)
+func (l *Leaf) toBytes(keySize int32) []byte {
+	size := NodeSize - int32(keySize)
+	b := make([]byte, size)
 
-	b = append(b, BytesFromInt(l.valueSize))
-	b = append(b, l.value)
+	b = append(b, BytesFromUint32(uint32(l.valueSize))...)
+	b = append(b, l.value...)
 
 	return b
 }

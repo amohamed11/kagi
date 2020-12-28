@@ -13,47 +13,59 @@ type DB_CONNECTION struct {
 }
 
 func Open(path string) *DB_CONNECTION {
-	file, err := os.Open(path)
-	check(err)
-
 	db := &DB_CONNECTION{}
-	db.file = file
 
-	headerBytes := make([]byte, PageSize)
-	_, err := file.Read(headerBytes)
-	check(err)
-	db.findRootNode(headerBytes)
+	file, err1 := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0755)
+	Check(err1)
+
+	db.file = file
+	fileInfo, err2 := db.file.Stat()
+	Check(err2)
+
+	if fileInfo.Size() != 0 {
+		headerBytes := make([]byte, NodeSize)
+		_, err3 := file.Read(headerBytes)
+		Check(err3)
+		db.setRootNode(headerBytes)
+	}
 
 	return db
 }
 
-func (db_conn *DB_CONNECTION) Close() {
+func (db *DB_CONNECTION) Close() {
 	db.Lock()
 	err := db.file.Close()
-	db.UnLock
-	check(err)
+	db.Unlock()
+	Check(err)
 }
 
-func (db_conn *DB_CONNECTION) Set(key string, value string) error {
+func (db *DB_CONNECTION) Clear() {
+	db.Lock()
+	err := db.file.Truncate(0)
+	db.Unlock()
+	Check(err)
+}
+
+func (db *DB_CONNECTION) Set(key string, value string) error {
 	db.Lock()
 	err := db.insertNode(key, value)
-	db.UnLock()
+	db.Unlock()
 
 	return err
 }
 
-func (db_conn *DB_CONNECTION) Get(key string) (string, error) {
+func (db *DB_CONNECTION) Get(key string) (string, error) {
 	db.Lock()
-	value, err := db.findLeaf(key)
-	db.UnLock()
+	node, err := db.findLeaf(key)
+	db.Unlock()
 
-	return value, err
+	return node.leaf.value, err
 }
 
-func (db_conn *DB_CONNECTION) Delete(key string) error {
-	db.Lock()
-	err := db.removeNode(key)
-	db.UnLock()
+// func (db *DB_CONNECTION) Delete(key string) error {
+// 	db.Lock()
+// 	err := db.removeNode(key)
+// 	db.Unlock()
 
-	return err
-}
+// 	return err
+// }
