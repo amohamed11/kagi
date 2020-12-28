@@ -47,18 +47,17 @@ func (db *DB_CONNECTION) Clear() {
 }
 
 func (db *DB_CONNECTION) Set(key string, value string) error {
-	db.Lock()
 	err := db.insertNode(key, value)
-	db.Unlock()
 
 	return err
 }
 
 func (db *DB_CONNECTION) Get(key string) (string, error) {
-	db.Lock()
 	node, err := db.findLeaf(key)
-	db.Unlock()
 
+	if node == nil {
+		return "", err
+	}
 	return node.leaf.value, err
 }
 

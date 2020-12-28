@@ -1,11 +1,11 @@
 package kagi
 
+import "fmt"
+
 func (db *DB_CONNECTION) setRootNode(b []byte) {
 	root := NodeFromBytes(b)
-	db.Lock()
 	db.root = root
 	db.count = int(root.numChildren) + 1
-	db.Unlock()
 }
 
 func (db *DB_CONNECTION) createRootNode(k string, v string) {
@@ -15,10 +15,7 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n.keySize = int32(len(k))
 	n.leaf = NewLeaf(v, n.keySize)
 
-	db.Lock()
 	db.root = n
-	db.Unlock()
-
 	db.writeNodeToFile(n)
 }
 
@@ -73,15 +70,16 @@ func (db *DB_CONNECTION) findLeaf(k string) (*Node, error) {
 
 // recursively traverse tree till we find leaf
 func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
+	fmt.Printf("found: %s, wanted: %s\n", currentNode.key, k)
 	if currentNode.numChildren == 0 {
 		return currentNode
 	}
 
 	nextNode := &Node{}
-	if k > currentNode.key && currentNode.leftChildOffset > 0 {
+	if k > currentNode.key && currentNode.rightChildOffset > 0 {
 		nextNode = db.getNodeAt(currentNode.rightChildOffset)
 	} else if k < currentNode.key && currentNode.leftChildOffset > 0 {
-		nextNode = db.getNodeAt(currentNode.rightChildOffset)
+		nextNode = db.getNodeAt(currentNode.leftChildOffset)
 	}
 
 	return db.searchNode(k, nextNode)
@@ -104,7 +102,8 @@ func (db *DB_CONNECTION) getNodeAt(offset uint32) *Node {
 	_, err1 := db.file.Seek(int64(offset), 0)
 	Check(err1)
 
-	_, err2 := db.file.Read(b)
+	size, err2 := db.file.Read(b)
+	fmt.Printf("read %d bytes\n", size)
 	Check(err2)
 
 	db.Unlock()

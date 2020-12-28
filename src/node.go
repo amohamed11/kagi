@@ -1,10 +1,10 @@
 package kagi
 
 const (
-	NodeSize   int32 = 8192
+	NodeSize   int32 = 4096
 	IntSize    int32 = 4
-	FlagSize   int32 = 1
-	HeaderSize int32 = 8170 // 8192 - (2 * 1) - (4 * 5)
+	FlagSize   int32 = 2
+	HeaderSize int32 = 4074 // 4096 - (2 * 1) - (4 * 5)
 )
 
 type Header struct {
@@ -60,29 +60,29 @@ func NodeFromBytes(b []byte) *Node {
 	node := &Node{}
 
 	// flags
-	node.isRoot = Uint16FromBytes(b[offset:])
+	node.isRoot = Uint16FromBytes(b[offset : offset+FlagSize])
 	offset += FlagSize
-	node.isDeleted = Uint16FromBytes(b[offset:])
+	node.isDeleted = Uint16FromBytes(b[offset : offset+FlagSize])
 	offset += FlagSize
 
 	// count
-	node.numChildren = Uint32FromBytes(b[offset:])
+	node.numChildren = Uint32FromBytes(b[offset : offset+IntSize])
 	offset += IntSize
 
 	// key
-	node.keySize = int32(Uint32FromBytes(b[offset:]))
+	node.keySize = int32(Uint32FromBytes(b[offset : offset+IntSize]))
 	offset += IntSize
-	node.key = string(b[offset:node.keySize])
+	node.key = string(b[offset : offset+node.keySize])
 	offset += node.keySize
 
 	// offsets
-	node.offset = Uint32FromBytes(b[offset:])
+	node.offset = Uint32FromBytes(b[offset : offset+IntSize])
 	offset += IntSize
-	node.parentOffset = Uint32FromBytes(b[offset:])
+	node.parentOffset = Uint32FromBytes(b[offset : offset+IntSize])
 	offset += IntSize
-	node.leftChildOffset = Uint32FromBytes(b[offset:])
+	node.leftChildOffset = Uint32FromBytes(b[offset : offset+IntSize])
 	offset += IntSize
-	node.rightChildOffset = Uint32FromBytes(b[offset:])
+	node.rightChildOffset = Uint32FromBytes(b[offset : offset+IntSize])
 	offset += IntSize
 
 	// adding children offsets
@@ -95,9 +95,9 @@ func LeafFromBytes(b []byte, nonLeafOffset int32) *Leaf {
 	offset := int32(0)
 	leaf := &Leaf{}
 
-	leaf.valueSize = int32(Uint32FromBytes(b[offset:]))
+	leaf.valueSize = int32(Uint32FromBytes(b[offset : offset+IntSize]))
 	offset += IntSize
-	leaf.value = string(b[offset:])
+	leaf.value = string(b[offset : offset+leaf.valueSize])
 	leaf.freeSpace = NodeSize - nonLeafOffset - int32(leaf.valueSize)
 
 	return leaf
