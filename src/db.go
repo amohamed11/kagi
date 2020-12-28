@@ -7,14 +7,9 @@ import (
 
 type DB_CONNECTION struct {
 	sync.Mutex
-	file *os.File
-	tree *Tree
-}
-
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
+	file  *os.File
+	root  *Node
+	count int
 }
 
 func Open(path string) *DB_CONNECTION {
@@ -27,7 +22,7 @@ func Open(path string) *DB_CONNECTION {
 	headerBytes := make([]byte, PageSize)
 	_, err := file.Read(headerBytes)
 	check(err)
-	db.tree.findRootNode(headerBytes)
+	db.findRootNode(headerBytes)
 
 	return db
 }
@@ -41,7 +36,7 @@ func (db_conn *DB_CONNECTION) Close() {
 
 func (db_conn *DB_CONNECTION) Set(key string, value string) error {
 	db.Lock()
-	err := db.tree.insertNode(key, value)
+	err := db.insertNode(key, value)
 	db.UnLock()
 
 	return err
@@ -49,7 +44,7 @@ func (db_conn *DB_CONNECTION) Set(key string, value string) error {
 
 func (db_conn *DB_CONNECTION) Get(key string) (string, error) {
 	db.Lock()
-	value, err := db.tree.findLeaf(key)
+	value, err := db.findLeaf(key)
 	db.UnLock()
 
 	return value, err
@@ -57,7 +52,7 @@ func (db_conn *DB_CONNECTION) Get(key string) (string, error) {
 
 func (db_conn *DB_CONNECTION) Delete(key string) error {
 	db.Lock()
-	err := db.tree.removeNode(key)
+	err := db.removeNode(key)
 	db.UnLock()
 
 	return err

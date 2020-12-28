@@ -1,12 +1,10 @@
 package kagi
 
-import "encoding/binary"
-
 const (
-	NodeSize int16 = 8192
-	IntSize  int8  = 4
-	FlagSize int8  = 1
-	LeafSize int8  = 8174 // 8192 - 1 - 1 - (4*4)
+	NodeSize   int16 = 8192
+	IntSize    int8  = 4
+	FlagSize   int8  = 1
+	HeaderSize       = 8170 // 8192 - (2 * 1) - (4 * 5)
 )
 
 type Header struct {
@@ -15,7 +13,7 @@ type Header struct {
 }
 
 type Node struct {
-	// On Disk
+	// On disk data
 	// Flags
 	isRoot    bool
 	isDeleted bool
@@ -24,26 +22,40 @@ type Node struct {
 	numChildren uint32
 
 	// Offsets
+	offset           uint32
 	parentOffset     uint32
 	leftChildOffset  uint32
 	rightChildOffset uint32
 
-	// In Memory
+	// key
+	keySize uint32
+	key     string
+
+	// value
+	// represented as Leaf in memory
 	leaf *Leaf
 }
 
 type Leaf struct {
-	// On Disk
-	key       string
-	keySize   uint32
+	// On disk value
 	value     string
 	valueSize uint32
 
-	// In Memory
+	// space left in node after value
 	freeSpace uint32
 }
 
-func NodefromBytes(b []byte) *Node {
+func NewLeaf(v string, keySize int) *Leaf {
+	l := &Leaf{}
+
+	l.value = v
+	l.valueSize = len(v)
+	l.freeSpace = NodeSize - HeaderSize - keySize - l.valueSize
+
+	return l
+}
+
+func NodeFromBytes(b []byte) *Node {
 	offset := 0
 	node := &Node{}
 
@@ -56,89 +68,78 @@ func NodefromBytes(b []byte) *Node {
 	offset += FlagSize
 
 	// count
-	node.numChildren = intFromBytes(b[offset:IntSize])
+	node.numChildren = IntFromBytes(b[offset:IntSize])
 	offset += IntSize
 
+	// key
+	node.keySize = IntFromBytes(b[offset:IntSize])
+	offset += IntSize
+	node.key = string(b[offset:node.keySize])
+	offset += node.keySize
+
 	// offsets
-	node.parentOffset = intFromBytes(b[offset:IntSize])
+	node.offset = IntFromBytes(b[offset:IntSize])
 	offset += IntSize
-	node.leftChildOffset = intFromBytes(b[offset:IntSize])
+	node.parentOffset = IntFromBytes(b[offset:IntSize])
 	offset += IntSize
-	node.rightChildOffset = intFromBytes(b[offset:IntSize])
+	node.leftChildOffset = IntFromBytes(b[offset:IntSize])
+	offset += IntSize
+	node.rightChildOffset = IntFromBytes(b[offset:IntSize])
 	offset += IntSize
 
 	// adding children offsets
-	node.leaf = LeafFromBytes(b[offset:BlockSize])
+	node.leaf = LeafFromBytes(b[offset:], offset)
+
 	return Node
 }
 
-func LeafFromBytes(b []byte) *Leaf {
+func LeafFromBytes(b []byte, nonLeafOffset int) *Leaf {
 	offset := 0
 	leaf := &Leaf{}
 
-	// sizes
-	leaf.keySize = intFromBytes(b[offset:IntSize])
+	leaf.valueSize = IntFromBytes(b[offset:IntSize])
 	offset += IntSize
-	leaf.valueSize = intFromBytes(b[offset:IntSize])
-	offset += IntSize
-	leaf.freeSpace = (leaf.keySize + leaf.valueSize + (IntSize * 2)) - BlockSize
-
-	// key-value pair
-	leaf.key = string(b[offset:leaf.keySize])
-	offset += leaf.keySize
 	leaf.value = string(b[offset:leaf.valueSize])
+	leaf.freeSpace = NodeSize - nonLeafOffset - leaf.valueSize
 
 	return leaf
 }
 
-func BytesFromNode(n *Node) []byte {
-	b := make([]byte, BlockSize)
-	offset = 0
+func (n *Node) toBytes() []byte {
+	b := make([]byte, NodeSize)
 
 	// flags
 	b = append(b, n.isRoot)
 	b = append(b, n.isDeleted)
 
 	// count
-	b = append(b, bytesFromInt(n.numChildren))
+	b = append(b, BytesFromInt(n.numChildren))
+
+	// key
+	b = append(b, l.key)
+	b = append(b, BytesFromInt(l.keySize))
 
 	// offsets
-	b = append(b, bytesFromInt(n.parentOffset))
-	b = append(b, bytesFromInt(n.leftChildOffset))
-	b = append(b, bytesFromInt(n.rightChildOffset))
+	b = append(b, BytesFromInt(n.offset))
+	b = append(b, BytesFromInt(n.parentOffset))
+	b = append(b, BytesFromInt(n.leftChildOffset))
+	b = append(b, BytesFromInt(n.rightChildOffset))
 
 	// leaf
-	if checkIsLeaf(n) {
-		b = append(b, BytesFromLeaf(n.leaf))
+	if checkHasLeaf(n) {
+		b = append(b, l.toBytes())
 	}
 }
 
-func BytesFromLeaf(l *Leaf) []byte {
+func (l *Leaf) toBytes() []byte {
 	b := make([]byte, LeafSize)
-	offset = 0
 
-	// sizes
-	b = append(b, bytesFromInt(l.keySize))
-	b = append(b, bytesFromInt(l.valueSize))
-
-	// key-value pair
-	b = append(b, l.key)
+	b = append(b, BytesFromInt(l.valueSize))
 	b = append(b, l.value)
 
 	return b
 }
 
-func checkIsLeaf(n *Node) bool {
+func checkHasLeaf(n *Node) bool {
 	return n.numChildren == 0
-}
-
-func intFromBytes(b []byte) uint32 {
-	newInt := binary.LittleEndian.Uint32(b)
-	return newInt
-}
-
-func bytesFromInt(i uint32) []byte {
-	b := make([]byte, IntSize)
-	binary.LittleEndian.PutUint32(b[0:], i)
-	return b
 }
