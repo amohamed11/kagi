@@ -13,6 +13,7 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n.leaf = NewLeaf(v, n.keySize)
 
 	db.root = n
+	db.count++
 	db.writeNodeToFile(n)
 }
 
@@ -35,6 +36,7 @@ func (db *DB_CONNECTION) insertNode(k string, v string) error {
 	}
 
 	db.insertNodeAt(n, leafNode)
+	db.count++
 	return nil
 }
 
@@ -51,7 +53,6 @@ func (db *DB_CONNECTION) insertNodeAt(n *Node, parent *Node) {
 	parent.numChildren++
 
 	// update parent node
-	db.count++
 	db.writeNodeToFile(parent)
 	db.writeNodeToFile(n)
 }
