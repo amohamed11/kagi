@@ -1,7 +1,5 @@
 package kagi
 
-import "fmt"
-
 func (db *DB_CONNECTION) setRootNode() {
 	db.root = db.getNodeAt(0)
 	db.count = int(db.root.numChildren) + 1
@@ -50,13 +48,12 @@ func (db *DB_CONNECTION) insertNodeAt(n *Node, parent *Node) {
 		parent.leftChildOffset = n.offset
 	}
 	n.parentOffset = parent.offset
-	parent.numChildren += uint32(1)
+	parent.numChildren++
 
 	// update parent node
-	// fmt.Printf("key: %s, offset: %d, parentOffset: %d\n", n.key, n.offset, parent.offset)
+	db.count++
 	db.writeNodeToFile(parent)
 	db.writeNodeToFile(n)
-	db.count += 1
 }
 
 func (db *DB_CONNECTION) findLeaf(k string) (*Node, error) {
@@ -71,13 +68,11 @@ func (db *DB_CONNECTION) findLeaf(k string) (*Node, error) {
 
 // recursively traverse tree till we find leaf
 func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
-	// fmt.Printf("found: %s, wanted: %s\n", currentNode.key, k)
 	if currentNode.numChildren == 0 {
 		return currentNode
 	}
 
 	nextNode := &Node{}
-	fmt.Printf("right: %d, left: %d\n", currentNode.rightChildOffset, currentNode.leftChildOffset)
 	if k > currentNode.key && currentNode.rightChildOffset > 0 {
 		nextNode = db.getNodeAt(currentNode.rightChildOffset)
 	} else if k < currentNode.key && currentNode.leftChildOffset > 0 {

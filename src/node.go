@@ -1,12 +1,10 @@
 package kagi
 
-import "fmt"
-
 const (
-	NodeSize   int32 = 4096
-	IntSize    int32 = 4
-	FlagSize   int32 = 2
-	HeaderSize int32 = 4074 // 4096 - (2 * 1) - (4 * 5)
+	NodeSize   int32 = 4096 // max size of a node
+	IntSize    int32 = 4    // size of uint32 used for offsets in node
+	FlagSize   int32 = 2    // size of uint16 used for flags in nodes
+	HeaderSize int32 = 4068 // 4096 - (2 * 2) - (4 * 6)
 )
 
 type Node struct {
@@ -71,7 +69,6 @@ func NodeFromBytes(b []byte) *Node {
 	offset += IntSize
 	node.key = string(b[offset : offset+node.keySize])
 	offset += node.keySize
-	fmt.Printf("from bytes, key: %s, keySize: %d\n", node.key, node.keySize)
 
 	// offsets
 	node.offset = Uint32FromBytes(b[offset : offset+IntSize])
@@ -103,38 +100,50 @@ func LeafFromBytes(b []byte, nonLeafOffset int32) *Leaf {
 
 func (n *Node) toBytes() []byte {
 	b := make([]byte, NodeSize)
+	offset := int32(0)
 
 	// flags
-	b = append(b, BytesFromUint16(n.isRoot)...)
-	b = append(b, BytesFromUint16(n.isDeleted)...)
+	copy(b[offset:], BytesFromUint16(n.isRoot))
+	offset += FlagSize
+	copy(b[offset:], BytesFromUint16(n.isDeleted))
+	offset += FlagSize
 
 	// count
-	b = append(b, BytesFromUint32(n.numChildren)...)
+	copy(b[offset:], BytesFromUint32(n.numChildren))
+	offset += IntSize
 
 	// key
-	b = append(b, BytesFromUint32(uint32(n.keySize))...)
-	b = append(b, n.key...)
+	copy(b[offset:], BytesFromUint32(uint32(n.keySize)))
+	offset += IntSize
+	copy(b[offset:], n.key)
+	offset += n.keySize
 
 	// offsets
-	b = append(b, BytesFromUint32(n.offset)...)
-	b = append(b, BytesFromUint32(n.parentOffset)...)
-	b = append(b, BytesFromUint32(n.leftChildOffset)...)
-	b = append(b, BytesFromUint32(n.rightChildOffset)...)
+	copy(b[offset:], BytesFromUint32(n.offset))
+	offset += IntSize
+	copy(b[offset:], BytesFromUint32(n.parentOffset))
+	offset += IntSize
+	copy(b[offset:], BytesFromUint32(n.leftChildOffset))
+	offset += IntSize
+	copy(b[offset:], BytesFromUint32(n.rightChildOffset))
+	offset += IntSize
 
 	// leaf
 	if checkHasLeaf(n) {
-		b = append(b, n.leaf.toBytes(n.keySize)...)
+		copy(b[offset:], n.leaf.toBytes(offset))
 	}
 
 	return b
 }
 
-func (l *Leaf) toBytes(keySize int32) []byte {
-	size := NodeSize - HeaderSize - int32(keySize)
+func (l *Leaf) toBytes(headerOffset int32) []byte {
+	size := NodeSize - headerOffset
 	b := make([]byte, size)
+	offset := int32(0)
 
-	b = append(b, BytesFromUint32(uint32(l.valueSize))...)
-	b = append(b, l.value...)
+	copy(b[offset:], BytesFromUint32(uint32(l.valueSize)))
+	offset += IntSize
+	copy(b[offset:], l.value)
 
 	return b
 }
