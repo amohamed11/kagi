@@ -50,3 +50,44 @@ func TestGet1Key(t *testing.T) {
 		t.Errorf(`actual: "%s", expected: "%s"`, found, v)
 	}
 }
+
+func TestSet10Key(t *testing.T) {
+	db := Open(testPath)
+	db.Clear()
+	rand.Seed(time.Now().UnixNano())
+	seq := randSeq(100)
+
+	for i := 0; i < 100; i += 10 {
+		count := db.count
+		k := seq[i : i+5]
+		v := seq[i+5 : i+10]
+
+		err := db.Set(k, v)
+		Check(err)
+		if db.count != count+1 {
+			t.Errorf(`actual: %d, expected %d`, db.count, count+1)
+		}
+	}
+
+}
+
+func TestGet10Key(t *testing.T) {
+	db := Open(testPath)
+	db.Clear()
+	rand.Seed(time.Now().UnixNano())
+	seq := randSeq(10)
+
+	for i := 0; i < 100; i += 10 {
+		k := seq[i : i+5]
+		v := seq[i+5 : i+10]
+
+		err := db.Set(k, v)
+		Check(err)
+
+		found, err := db.Get(k)
+		if found != v {
+			t.Error(err)
+			t.Errorf(`actual: "%s", expected: "%s"`, found, v)
+		}
+	}
+}
