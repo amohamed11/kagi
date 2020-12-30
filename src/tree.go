@@ -5,6 +5,7 @@ func (db *DB_CONNECTION) setRootNode() {
 	db.count = int(db.root.numChildren) + 1
 }
 
+// TODO save and load db count to/from file
 func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n := &Node{}
 	n.isRoot = TRUE
@@ -13,7 +14,6 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n.leaf = NewLeaf(v, n.keySize)
 
 	db.root = n
-	db.count++
 	db.writeNodeToFile(n)
 }
 
@@ -41,14 +41,13 @@ func (db *DB_CONNECTION) insertNode(k string, v string) error {
 }
 
 func (db *DB_CONNECTION) insertNodeAt(n *Node, parent *Node) {
-	if n.key > parent.key {
-		// leave space for left child
-		n.offset = parent.offset + (uint32(NodeSize) * 2)
-		parent.rightChildOffset = n.offset
-	} else {
-		n.offset = parent.offset + uint32(NodeSize)
-		parent.leftChildOffset = n.offset
-	}
+	// for i := 0; uint32(i) < currentNode.numChildren; i++ {
+	// 	if currentNode.childOffsets[i] == 0 {
+	// 		n.offset = currentNode.offset + (uint32(NodeSize) * i)
+	// 		currentNode.childOffsets[i] = n.offset
+	// 		break
+	// 	}
+	// }
 	n.parentOffset = parent.offset
 	parent.numChildren++
 
@@ -69,20 +68,19 @@ func (db *DB_CONNECTION) findLeaf(k string) (*Node, error) {
 
 // recursively traverse tree till we find leaf
 func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
-	if currentNode.numChildren == 0 {
-		return currentNode
+	if int32(currentNode.numChildren) > 0 {
+		for i := 0; uint32(i) < currentNode.numChildren; i++ {
+			if currentNode.childOffsets[i] == 0 {
+				return currentNode
+			}
+			n := db.getNodeAt(currentNode.childOffsets[i])
+			if k > n.key {
+				return db.searchNode(k, n)
+			}
+		}
 	}
 
-	nextNode := &Node{}
-	if k > currentNode.key && currentNode.rightChildOffset > 0 {
-		nextNode = db.getNodeAt(currentNode.rightChildOffset)
-	} else if k < currentNode.key && currentNode.leftChildOffset > 0 {
-		nextNode = db.getNodeAt(currentNode.leftChildOffset)
-	} else {
-		return currentNode
-	}
-
-	return db.searchNode(k, nextNode)
+	return currentNode
 }
 
 // TODO delete node

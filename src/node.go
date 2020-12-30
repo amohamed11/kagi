@@ -1,10 +1,11 @@
 package kagi
 
 const (
+	Order      int32 = 4    // the upper limit of children for nodes, thus 2-4 max children
 	NodeSize   int32 = 4096 // max size of a node
-	IntSize    int32 = 4    // size of uint32 used for offsets in node
+	IntSize    int32 = 4    // size of uint32 used for offsets and counts in node
 	FlagSize   int32 = 2    // size of uint16 used for flags in nodes
-	HeaderSize int32 = 4068 // 4096 - (2 * 2) - (4 * 6)
+	HeaderSize int32 = 4056 // 4096 - flags(2 * 2) - count&offsets(4 * 4) - childOffsets(4*5)
 )
 
 type Node struct {
@@ -17,10 +18,9 @@ type Node struct {
 	numChildren uint32
 
 	// Offsets
-	offset           uint32
-	parentOffset     uint32
-	leftChildOffset  uint32
-	rightChildOffset uint32
+	offset       uint32
+	parentOffset uint32
+	childOffsets [Order]uint32
 
 	// key
 	keySize int32
@@ -75,12 +75,14 @@ func NodeFromBytes(b []byte) *Node {
 	offset += IntSize
 	node.parentOffset = Uint32FromBytes(b[offset : offset+IntSize])
 	offset += IntSize
-	node.leftChildOffset = Uint32FromBytes(b[offset : offset+IntSize])
-	offset += IntSize
-	node.rightChildOffset = Uint32FromBytes(b[offset : offset+IntSize])
-	offset += IntSize
 
-	// adding children offsets
+	// children offsets
+	for i := 0; uint32(i) < node.numChildren; i++ {
+		node.childOffsets[i] = Uint32FromBytes(b[offset : offset+IntSize])
+		offset += IntSize
+	}
+
+	// adding lchildren offsets
 	node.leaf = LeafFromBytes(b[offset:], offset)
 
 	return node
@@ -123,10 +125,16 @@ func (n *Node) toBytes() []byte {
 	offset += IntSize
 	copy(b[offset:], BytesFromUint32(n.parentOffset))
 	offset += IntSize
-	copy(b[offset:], BytesFromUint32(n.leftChildOffset))
-	offset += IntSize
-	copy(b[offset:], BytesFromUint32(n.rightChildOffset))
-	offset += IntSize
+
+	// children offsets
+	for i := 0; i < int(Order); i++ {
+		if uint32(i) < n.numChildren {
+			copy(b[offset:], BytesFromUint32(n.childOffsets[i]))
+		} else {
+			copy(b[offset:], BytesFromUint32(uint32(0)))
+		}
+		offset += IntSize
+	}
 
 	// leaf
 	if checkHasLeaf(n) {
