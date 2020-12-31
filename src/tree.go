@@ -10,14 +10,17 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 
 	n.isRoot = TRUE
 
-	n.keys = append(n.keys, &Data{data: []byte(k), size: int32(len(k))})
+	n.keys = make([]*Data, 1)
+	n.keys[0] = &Data{data: []byte(k), size: int32(len(k))}
 	n.numKeys++
 
 	newLeaf := NewLeaf(k, v)
-	n.leaves = append(n.leaves, newLeaf)
+	n.leaves = make([]*Leaf, 1)
+	n.leaves[0] = newLeaf
 	n.numLeaves++
 
 	db.root = n
+	db.count++
 	db.writeNodeToFile(n)
 }
 
@@ -44,6 +47,7 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 	}
 
 	db.insertLeaf(newLeaf, parent, index)
+	db.count++
 
 	return nil
 }
@@ -59,7 +63,6 @@ func (db *DB_CONNECTION) insertLeaf(l *Leaf, parent *Node, index int) {
 		// update parent & db count
 		parent.numLeaves++
 		db.writeNodeToFile(parent)
-		db.count++
 	}
 }
 

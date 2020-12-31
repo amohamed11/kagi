@@ -49,11 +49,15 @@ type Data struct {
 func NewLeaf(k string, v string) *Leaf {
 	l := &Leaf{}
 
-	copy(l.key.data, k)
-	l.key.size = int32(len(k))
+	l.key = &Data{
+		data: []byte(k),
+		size: int32(len(k)),
+	}
 
-	copy(l.value.data, v)
-	l.value.size = int32(len(v))
+	l.value = &Data{
+		data: []byte(v),
+		size: int32(len(v)),
+	}
 
 	return l
 }
@@ -89,7 +93,8 @@ func NodeFromBytes(b []byte) *Node {
 	}
 
 	// keys
-	if node.checkHasLeaf() {
+	if !node.checkHasLeaf() {
+		node.keys = make([]*Data, node.numKeys)
 		for i := 0; uint16(i) < node.numKeys; i++ {
 			node.keys[i].size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
 			offset += Int32Size
@@ -97,10 +102,10 @@ func NodeFromBytes(b []byte) *Node {
 			offset += node.keys[i].size
 		}
 	} else {
+		node.leaves = make([]*Leaf, node.numLeaves)
 		leafOffset := int32(0)
 		for i := 0; uint16(i) < node.numLeaves; i++ {
 			node.leaves[i], leafOffset = LeafFromBytes(b[offset+leafOffset:])
-
 		}
 	}
 
@@ -112,12 +117,14 @@ func LeafFromBytes(b []byte) (*Leaf, int32) {
 	leaf := &Leaf{}
 
 	// key
+	leaf.key = &Data{}
 	leaf.key.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
 	offset += Int32Size
 	leaf.key.data = b[offset : offset+leaf.key.size]
 	offset += leaf.key.size
 
 	// value
+	leaf.value = &Data{}
 	leaf.value.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
 	offset += Int32Size
 	leaf.value.data = b[offset : offset+leaf.value.size]

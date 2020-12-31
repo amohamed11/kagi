@@ -39,8 +39,10 @@ func (db *DB_CONNECTION) Close() {
 func (db *DB_CONNECTION) Clear() {
 	db.Lock()
 	err := db.file.Truncate(0)
-	db.Unlock()
 	Check(err)
+	db.count = 0
+	db.root = nil
+	db.Unlock()
 }
 
 func (db *DB_CONNECTION) Set(key string, value string) error {

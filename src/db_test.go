@@ -21,6 +21,7 @@ func randSeq(n int) string {
 
 func TestSet1Key(t *testing.T) {
 	db := Open(testPath)
+	db.Clear()
 	count := db.count
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(10)
@@ -36,6 +37,7 @@ func TestSet1Key(t *testing.T) {
 
 func TestGet1Key(t *testing.T) {
 	db := Open(testPath)
+	db.Clear()
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(10)
 	k := seq[0:5]
