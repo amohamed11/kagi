@@ -1,51 +1,59 @@
 package kagi
 
 const (
-	Order      int32 = 4    // the upper limit of children for nodes, thus 2-4 max children
-	NodeSize   int32 = 4096 // max size of a node
-	IntSize    int32 = 4    // size of uint32 used for offsets and counts in node
-	FlagSize   int32 = 2    // size of uint16 used for flags in nodes
-	HeaderSize int32 = 4056 // 4096 - flags(2 * 2) - count&offsets(4 * 4) - childOffsets(4*5)
+	Order      int32 = 3                  // the upper limit of children for nodes, 2-Order max children
+	BlockSize  int32 = 4096               // max size of a node
+	Int32Size  int32 = 4                  // size of uint32 used for offsets in node
+	Int16Size  int32 = 2                  // size of uint16 used for flags and counts in nodes
+	HeaderSize int32 = 4078 - (Order * 4) // 4096 - flags(2*2) - counts(3*2) - offsets(2*4) - childOffsets(Order*4)
 )
 
 type Node struct {
-	// On disk data
+	//----Header----
 	// Flags
 	isRoot    uint16
 	isDeleted uint16
 
 	// Counts
-	numChildren uint32
+	numKeys     uint16
+	numChildren uint16
+	numLeaves   uint16
 
 	// Offsets
 	offset       uint32
 	parentOffset uint32
 	childOffsets [Order]uint32
+	// -------------
 
-	// key
-	keySize int32
-	key     string
+	// branching node
+	keys []*Data
 
-	// value
-	// represented as Leaf in memory
-	leaf *Leaf
+	// leaf nodes
+	leaves []*Leaf
 }
 
 type Leaf struct {
-	// On disk value
-	value     string
-	valueSize int32
+	// data
+	key   *Data
+	value *Data
 
-	// space left in node after value
-	freeSpace int32
+	// TODO Calculate in memory
+	// freeSpace int32
 }
 
-func NewLeaf(v string, keySize int32) *Leaf {
+type Data struct {
+	size int32
+	data []byte
+}
+
+func NewLeaf(k string, v string) *Leaf {
 	l := &Leaf{}
 
-	l.value = v
-	l.valueSize = int32(len(v))
-	l.freeSpace = NodeSize - HeaderSize - keySize - l.valueSize
+	copy(l.key.data, k)
+	l.key.size = int32(len(k))
+
+	copy(l.value.data, v)
+	l.value.size = int32(len(v))
 
 	return l
 }
@@ -55,107 +63,140 @@ func NodeFromBytes(b []byte) *Node {
 	node := &Node{}
 
 	// flags
-	node.isRoot = Uint16FromBytes(b[offset : offset+FlagSize])
-	offset += FlagSize
-	node.isDeleted = Uint16FromBytes(b[offset : offset+FlagSize])
-	offset += FlagSize
+	node.isRoot = Uint16FromBytes(b[offset : offset+Int16Size])
+	offset += Int16Size
+	node.isDeleted = Uint16FromBytes(b[offset : offset+Int16Size])
+	offset += Int16Size
 
 	// count
-	node.numChildren = Uint32FromBytes(b[offset : offset+IntSize])
-	offset += IntSize
-
-	// key
-	node.keySize = int32(Uint32FromBytes(b[offset : offset+IntSize]))
-	offset += IntSize
-	node.key = string(b[offset : offset+node.keySize])
-	offset += node.keySize
+	node.numKeys = Uint16FromBytes(b[offset : offset+Int32Size])
+	offset += Int16Size
+	node.numChildren = Uint16FromBytes(b[offset : offset+Int32Size])
+	offset += Int16Size
+	node.numLeaves = Uint16FromBytes(b[offset : offset+Int32Size])
+	offset += Int16Size
 
 	// offsets
-	node.offset = Uint32FromBytes(b[offset : offset+IntSize])
-	offset += IntSize
-	node.parentOffset = Uint32FromBytes(b[offset : offset+IntSize])
-	offset += IntSize
+	node.offset = Uint32FromBytes(b[offset : offset+Int32Size])
+	offset += Int32Size
+	node.parentOffset = Uint32FromBytes(b[offset : offset+Int32Size])
+	offset += Int32Size
 
 	// children offsets
-	for i := 0; uint32(i) < node.numChildren; i++ {
-		node.childOffsets[i] = Uint32FromBytes(b[offset : offset+IntSize])
-		offset += IntSize
+	for i := 0; uint16(i) < node.numChildren; i++ {
+		node.childOffsets[i] = Uint32FromBytes(b[offset : offset+Int32Size])
+		offset += Int32Size
 	}
 
-	// adding lchildren offsets
-	node.leaf = LeafFromBytes(b[offset:], offset)
+	// keys
+	if node.checkHasLeaf() {
+		for i := 0; uint16(i) < node.numKeys; i++ {
+			node.keys[i].size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
+			offset += Int32Size
+			node.keys[i].data = b[offset : offset+node.keys[i].size]
+			offset += node.keys[i].size
+		}
+	} else {
+		leafOffset := int32(0)
+		for i := 0; uint16(i) < node.numLeaves; i++ {
+			node.leaves[i], leafOffset = LeafFromBytes(b[offset+leafOffset:])
+
+		}
+	}
 
 	return node
 }
 
-func LeafFromBytes(b []byte, nonLeafOffset int32) *Leaf {
+func LeafFromBytes(b []byte) (*Leaf, int32) {
 	offset := int32(0)
 	leaf := &Leaf{}
 
-	leaf.valueSize = int32(Uint32FromBytes(b[offset : offset+IntSize]))
-	offset += IntSize
-	leaf.value = string(b[offset : offset+leaf.valueSize])
-	leaf.freeSpace = NodeSize - nonLeafOffset - int32(leaf.valueSize)
+	// key
+	leaf.key.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
+	offset += Int32Size
+	leaf.key.data = b[offset : offset+leaf.key.size]
+	offset += leaf.key.size
 
-	return leaf
+	// value
+	leaf.value.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
+	offset += Int32Size
+	leaf.value.data = b[offset : offset+leaf.value.size]
+	offset += leaf.value.size
+
+	return leaf, offset
 }
 
 func (n *Node) toBytes() []byte {
-	b := make([]byte, NodeSize)
+	b := make([]byte, BlockSize)
 	offset := int32(0)
 
 	// flags
 	copy(b[offset:], BytesFromUint16(n.isRoot))
-	offset += FlagSize
+	offset += Int16Size
 	copy(b[offset:], BytesFromUint16(n.isDeleted))
-	offset += FlagSize
+	offset += Int16Size
 
 	// count
-	copy(b[offset:], BytesFromUint32(n.numChildren))
-	offset += IntSize
-
-	// key
-	copy(b[offset:], BytesFromUint32(uint32(n.keySize)))
-	offset += IntSize
-	copy(b[offset:], n.key)
-	offset += n.keySize
+	copy(b[offset:], BytesFromUint16(n.numKeys))
+	offset += Int16Size
+	copy(b[offset:], BytesFromUint16(n.numChildren))
+	offset += Int16Size
+	copy(b[offset:], BytesFromUint16(n.numLeaves))
+	offset += Int16Size
 
 	// offsets
 	copy(b[offset:], BytesFromUint32(n.offset))
-	offset += IntSize
+	offset += Int32Size
 	copy(b[offset:], BytesFromUint32(n.parentOffset))
-	offset += IntSize
+	offset += Int32Size
 
 	// children offsets
 	for i := 0; i < int(Order); i++ {
-		if uint32(i) < n.numChildren {
+		if uint16(i) < n.numChildren {
 			copy(b[offset:], BytesFromUint32(n.childOffsets[i]))
 		} else {
 			copy(b[offset:], BytesFromUint32(uint32(0)))
 		}
-		offset += IntSize
+		offset += Int32Size
 	}
 
-	// leaf
-	if checkHasLeaf(n) {
-		copy(b[offset:], n.leaf.toBytes(offset))
+	if !n.checkHasLeaf() {
+		// keys
+		for i := 0; uint16(i) < n.numKeys; i++ {
+			copy(b[offset:], BytesFromUint32(uint32(n.keys[i].size)))
+			offset += Int32Size
+			copy(b[offset:], n.keys[i].data)
+			offset += n.keys[i].size
+		}
+	} else {
+		// leaves
+		for i := 0; uint16(i) < n.numLeaves; i++ {
+			copy(b[offset:], n.leaves[i].toBytes(offset))
+		}
 	}
 
 	return b
 }
 
 func (l *Leaf) toBytes(headerOffset int32) []byte {
-	size := NodeSize - headerOffset
+	size := BlockSize - headerOffset
 	b := make([]byte, size)
 	offset := int32(0)
 
-	copy(b[offset:], BytesFromUint32(uint32(l.valueSize)))
-	offset += IntSize
-	copy(b[offset:], l.value)
+	// key
+	copy(b[offset:], BytesFromUint32(uint32(l.key.size)))
+	offset += Int32Size
+	copy(b[offset:], l.key.data)
+	offset += l.key.size
+
+	// value
+	copy(b[offset:], BytesFromUint32(uint32(l.value.size)))
+	offset += Int32Size
+	copy(b[offset:], l.value.data)
 
 	return b
 }
 
-func checkHasLeaf(n *Node) bool {
-	return n.numChildren == 0
+func (n *Node) checkHasLeaf() bool {
+	return n.numLeaves != 0
 }

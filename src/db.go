@@ -44,18 +44,18 @@ func (db *DB_CONNECTION) Clear() {
 }
 
 func (db *DB_CONNECTION) Set(key string, value string) error {
-	err := db.insertNode(key, value)
+	err := db.insert(key, value)
 
 	return err
 }
 
 func (db *DB_CONNECTION) Get(key string) (string, error) {
-	node, err := db.findLeaf(key)
+	leaf, err := db.findLeaf(key)
 
-	if node == nil {
+	if leaf == nil {
 		return "", err
 	}
-	return node.leaf.value, err
+	return string(leaf.value.data), err
 }
 
 // func (db *DB_CONNECTION) Delete(key string) error {

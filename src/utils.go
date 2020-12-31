@@ -28,7 +28,7 @@ func Uint32FromBytes(b []byte) uint32 {
 }
 
 func BytesFromUint32(i uint32) []byte {
-	b := make([]byte, IntSize)
+	b := make([]byte, Int32Size)
 	binary.LittleEndian.PutUint32(b, i)
 	return b
 }
@@ -39,7 +39,7 @@ func Uint16FromBytes(b []byte) uint16 {
 }
 
 func BytesFromUint16(i uint16) []byte {
-	b := make([]byte, FlagSize)
+	b := make([]byte, Int16Size)
 	binary.LittleEndian.PutUint16(b, i)
 	return b
 }
