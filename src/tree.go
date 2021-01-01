@@ -35,7 +35,7 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 
 	parent := db.searchNode(k, db.root)
 	index := 0
-	for index = 0; uint16(index) < parent.numLeaves; index++ {
+	for index = 0; index < int(parent.numLeaves); index++ {
 		// found leaf with correct key or no more leaves left
 		if k <= string(parent.leaves[index].key.data) {
 			break
@@ -53,28 +53,24 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 }
 
 func (db *DB_CONNECTION) insertLeaf(l *Leaf, parent *Node, index int) {
-	// TODO handle filled leaf bucket, aka splitting
-	// if int32(parent.numLeaves) >= Order {
-	// }
-
+	// if there is space left in leaf bucket
 	if int32(parent.numLeaves) < Order {
 		parent.leaves = insertIntoLeaves(l, parent.leaves, index)
 
 		// update parent & db count
 		parent.numLeaves++
 		db.writeNodeToFile(parent)
+	} else {
+		// split parent and insert
+		db.splitLeaves(parent)
 	}
-}
-
-func insertIntoLeaves(l *Leaf, leaves []*Leaf, i int) []*Leaf {
-	return append(leaves[:i], append([]*Leaf{l}, leaves[i:]...)...)
 }
 
 func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
 	parent := db.searchNode(k, db.root)
 	index := 0
 
-	for index = 0; uint16(index) < parent.numLeaves; index++ {
+	for index = 0; index < int(parent.numLeaves); index++ {
 		// found leaf with correct key or no more leaves left
 		if string(parent.leaves[index].key.data) == k {
 			break
@@ -92,7 +88,7 @@ func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
 func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
 	if !currentNode.checkHasLeaf() {
 		i := 0
-		for i = 0; uint16(i) < currentNode.numKeys; i++ {
+		for i = 0; i < int(currentNode.numKeys); i++ {
 			if k < string(currentNode.keys[i].data) {
 				n := db.getNodeAt(currentNode.childOffsets[i])
 				return db.searchNode(k, n)
@@ -119,9 +115,6 @@ func (db *DB_CONNECTION) getNodeAt(offset uint32) *Node {
 
 // TODO delete node
 //func (db *DB_CONNECTION) removeNode(k string) error {}
-
-// TODO split node and rebalance
-//func (db *DB_CONNECTION) splitNode(n *Node, parent *Node) {}
 
 //
 // File level operations

@@ -62,146 +62,98 @@ func NewLeaf(k string, v string) *Leaf {
 	return l
 }
 
-func NodeFromBytes(b []byte) *Node {
-	offset := int32(0)
-	node := &Node{}
+// Steps for splitting:
+//  1. Splits leaves into 3 parts
+//  2. Middle becomes a branching node
+//  3. Left & Right become child leaf nodes of the Middle
+//  4. Add middle node as child to parent
+//  5. If parent is now full, split parent node as well
+func (db DB_CONNECTION) splitLeaves(parent *Node) {
+	half := Order - 1/2
+	left := parent.leaves[:half]
+	middle := parent.leaves[half]
+	right := parent.leaves[half:]
 
-	// flags
-	node.isRoot = Uint16FromBytes(b[offset : offset+Int16Size])
-	offset += Int16Size
-	node.isDeleted = Uint16FromBytes(b[offset : offset+Int16Size])
-	offset += Int16Size
+	// create new node using middle key
+	middleBranchNode := &Node{
+		numKeys:      1,
+		numChildren:  parent.numLeaves,
+		offset:       uint32(BlockSize) * uint32(db.count),
+		parentOffset: parent.offset,
+	}
+	middleBranchNode.keys = make([]*Data, 1)
+	middleBranchNode.keys[0] = middle.key
 
-	// count
-	node.numKeys = Uint16FromBytes(b[offset : offset+Int32Size])
-	offset += Int16Size
-	node.numChildren = Uint16FromBytes(b[offset : offset+Int32Size])
-	offset += Int16Size
-	node.numLeaves = Uint16FromBytes(b[offset : offset+Int32Size])
-	offset += Int16Size
+	// offsets for left & right splits
+	middleBranchNode.childOffsets[0] = middleBranchNode.offset + uint32(BlockSize)
+	middleBranchNode.childOffsets[1] = middleBranchNode.offset + uint32(BlockSize*2)
 
-	// offsets
-	node.offset = Uint32FromBytes(b[offset : offset+Int32Size])
-	offset += Int32Size
-	node.parentOffset = Uint32FromBytes(b[offset : offset+Int32Size])
-	offset += Int32Size
-
-	// children offsets
-	for i := 0; uint16(i) < node.numChildren; i++ {
-		node.childOffsets[i] = Uint32FromBytes(b[offset : offset+Int32Size])
-		offset += Int32Size
+	// create left & right nodes & populate with split leaves
+	leftLeafNode := &Node{
+		numLeaves:    uint16(half),
+		offset:       middleBranchNode.childOffsets[0],
+		parentOffset: middleBranchNode.offset,
+		leaves:       left,
 	}
 
-	// keys
-	if !node.checkHasLeaf() {
-		node.keys = make([]*Data, node.numKeys)
-		for i := 0; uint16(i) < node.numKeys; i++ {
-			node.keys[i].size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
-			offset += Int32Size
-			node.keys[i].data = b[offset : offset+node.keys[i].size]
-			offset += node.keys[i].size
+	rightLeafNode := &Node{
+		numLeaves:    uint16(Order - half),
+		offset:       middleBranchNode.childOffsets[1],
+		parentOffset: middleBranchNode.offset,
+		leaves:       right,
+	}
+
+	parent.addKey(middleBranchNode)
+
+	db.writeNodeToFile(parent)
+	db.writeNodeToFile(middleBranchNode)
+	db.writeNodeToFile(leftLeafNode)
+	db.writeNodeToFile(rightLeafNode)
+	db.count += 2
+}
+
+// TODO split node & update parent links
+// func (n *Node) splitNode() {
+// 	half := Order - 1/2
+// 	leftKeys := n.keys[:half]
+// 	middleKey := n.keys[half]
+// 	rightKeys := n.keys[half:]
+
+// 	leftoffsets := n.childOffsets[:half]
+// 	middleOffset := n.childOffsets[half]
+// 	rightOffsets := n.childOffsets[half:]
+// }
+
+func (parent *Node) addKey(n *Node) {
+	for i := 0; i < int(parent.numKeys); i++ {
+		if string(n.keys[0].data) < string(parent.keys[i].data) {
+			parent.keys = insertIntoKeys(n.keys[0], parent.keys, i)
+			insertIntoOffsets(n.offset, parent.childOffsets, i)
 		}
+	}
+
+	// TODO split parent node
+	// if int32(n.numKeys) == Order {
+	// 	n.splitNode()
+	// }
+}
+
+func insertIntoKeys(k *Data, keys []*Data, i int) []*Data {
+	return append(keys[:i], append([]*Data{k}, keys[i:]...)...)
+}
+
+func insertIntoOffsets(offset uint32, childOffsets [Order]uint32, index int) {
+	if childOffsets[index] == uint32(0) {
+		childOffsets[index] = offset
 	} else {
-		node.leaves = make([]*Leaf, node.numLeaves)
-		leafOffset := int32(0)
-		for i := 0; uint16(i) < node.numLeaves; i++ {
-			node.leaves[i], leafOffset = LeafFromBytes(b[offset+leafOffset:])
-		}
+		tmp := childOffsets[index]
+		childOffsets[index] = offset
+		insertIntoOffsets(tmp, childOffsets, index+1)
 	}
-
-	return node
 }
 
-func LeafFromBytes(b []byte) (*Leaf, int32) {
-	offset := int32(0)
-	leaf := &Leaf{}
-
-	// key
-	leaf.key = &Data{}
-	leaf.key.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
-	offset += Int32Size
-	leaf.key.data = b[offset : offset+leaf.key.size]
-	offset += leaf.key.size
-
-	// value
-	leaf.value = &Data{}
-	leaf.value.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
-	offset += Int32Size
-	leaf.value.data = b[offset : offset+leaf.value.size]
-	offset += leaf.value.size
-
-	return leaf, offset
-}
-
-func (n *Node) toBytes() []byte {
-	b := make([]byte, BlockSize)
-	offset := int32(0)
-
-	// flags
-	copy(b[offset:], BytesFromUint16(n.isRoot))
-	offset += Int16Size
-	copy(b[offset:], BytesFromUint16(n.isDeleted))
-	offset += Int16Size
-
-	// count
-	copy(b[offset:], BytesFromUint16(n.numKeys))
-	offset += Int16Size
-	copy(b[offset:], BytesFromUint16(n.numChildren))
-	offset += Int16Size
-	copy(b[offset:], BytesFromUint16(n.numLeaves))
-	offset += Int16Size
-
-	// offsets
-	copy(b[offset:], BytesFromUint32(n.offset))
-	offset += Int32Size
-	copy(b[offset:], BytesFromUint32(n.parentOffset))
-	offset += Int32Size
-
-	// children offsets
-	for i := 0; i < int(Order); i++ {
-		if uint16(i) < n.numChildren {
-			copy(b[offset:], BytesFromUint32(n.childOffsets[i]))
-		} else {
-			copy(b[offset:], BytesFromUint32(uint32(0)))
-		}
-		offset += Int32Size
-	}
-
-	if !n.checkHasLeaf() {
-		// keys
-		for i := 0; uint16(i) < n.numKeys; i++ {
-			copy(b[offset:], BytesFromUint32(uint32(n.keys[i].size)))
-			offset += Int32Size
-			copy(b[offset:], n.keys[i].data)
-			offset += n.keys[i].size
-		}
-	} else {
-		// leaves
-		for i := 0; uint16(i) < n.numLeaves; i++ {
-			copy(b[offset:], n.leaves[i].toBytes(offset))
-		}
-	}
-
-	return b
-}
-
-func (l *Leaf) toBytes(headerOffset int32) []byte {
-	size := BlockSize - headerOffset
-	b := make([]byte, size)
-	offset := int32(0)
-
-	// key
-	copy(b[offset:], BytesFromUint32(uint32(l.key.size)))
-	offset += Int32Size
-	copy(b[offset:], l.key.data)
-	offset += l.key.size
-
-	// value
-	copy(b[offset:], BytesFromUint32(uint32(l.value.size)))
-	offset += Int32Size
-	copy(b[offset:], l.value.data)
-
-	return b
+func insertIntoLeaves(l *Leaf, leaves []*Leaf, i int) []*Leaf {
+	return append(leaves[:i], append([]*Leaf{l}, leaves[i:]...)...)
 }
 
 func (n *Node) checkHasLeaf() bool {
