@@ -32,38 +32,33 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 	}
 
 	newLeaf := NewLeaf(k, v)
-
 	parent := db.searchNode(k, db.root)
-	index := 0
-	for index = 0; index < int(parent.numLeaves); index++ {
+	var keyFound string
+
+	for i := 0; i < int(parent.numLeaves); i++ {
 		// found leaf with correct key or no more leaves left
-		if k <= string(parent.leaves[index].key.data) {
+		if k <= string(parent.leaves[i].key.data) {
+			keyFound = string(parent.leaves[i].key.data)
 			break
 		}
 	}
 
-	if k == string(parent.leaves[index].key.data) {
+	if k == keyFound {
 		return KEY_ALREADY_EXISTS
 	}
 
-	db.insertLeaf(newLeaf, parent, index)
+	db.insertLeaf(newLeaf, parent)
 	db.count++
 
 	return nil
 }
 
-func (db *DB_CONNECTION) insertLeaf(l *Leaf, parent *Node, index int) {
-	// if there is space left in leaf bucket
-	if int32(parent.numLeaves) < Order {
-		parent.leaves = insertIntoLeaves(l, parent.leaves, index)
+func (db *DB_CONNECTION) insertLeaf(l *Leaf, parent *Node) {
+	parent.addLeaf(db, l)
 
-		// update parent & db count
-		parent.numLeaves++
-		db.writeNodeToFile(parent)
-	} else {
-		// split parent and insert
-		db.splitLeaves(parent)
-	}
+	// update parent & db count
+	db.writeNodeToFile(parent)
+	db.count++
 }
 
 func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
@@ -115,10 +110,6 @@ func (db *DB_CONNECTION) getNodeAt(offset uint32) *Node {
 
 // TODO delete node
 //func (db *DB_CONNECTION) removeNode(k string) error {}
-
-//
-// File level operations
-//
 
 func (db *DB_CONNECTION) readBytesAt(b []byte, offset uint32) {
 	db.Lock()

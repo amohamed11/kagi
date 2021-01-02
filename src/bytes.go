@@ -1,5 +1,7 @@
 package kagi
 
+import "encoding/binary"
+
 func NodeFromBytes(b []byte) *Node {
 	offset := int32(0)
 	node := &Node{}
@@ -139,5 +141,27 @@ func (l *Leaf) toBytes(headerOffset int32) []byte {
 	offset += Int32Size
 	copy(b[offset:], l.value.data)
 
+	return b
+}
+
+func Uint32FromBytes(b []byte) uint32 {
+	newInt := binary.LittleEndian.Uint32(b)
+	return newInt
+}
+
+func BytesFromUint32(i uint32) []byte {
+	b := make([]byte, Int32Size)
+	binary.LittleEndian.PutUint32(b, i)
+	return b
+}
+
+func Uint16FromBytes(b []byte) uint16 {
+	newInt := binary.LittleEndian.Uint16(b)
+	return newInt
+}
+
+func BytesFromUint16(i uint16) []byte {
+	b := make([]byte, Int16Size)
+	binary.LittleEndian.PutUint16(b, i)
 	return b
 }
