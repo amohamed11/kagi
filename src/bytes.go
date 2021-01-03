@@ -26,14 +26,15 @@ func NodeFromBytes(b []byte) *Node {
 	node.parentOffset = Uint32FromBytes(b[offset : offset+Int32Size])
 	offset += Int32Size
 
-	// children offsets
-	for i := 0; i < int(node.numKeys)+1; i++ {
-		node.childOffsets[i] = Uint32FromBytes(b[offset : offset+Int32Size])
-		offset += Int32Size
-	}
-
 	// keys
 	if !node.checkHasLeaf() {
+		// children offsets
+		node.childOffsets = make([]uint32, node.numKeys+1)
+		for i := 0; i < int(node.numKeys)+1; i++ {
+			node.childOffsets[i] = Uint32FromBytes(b[offset : offset+Int32Size])
+			offset += Int32Size
+		}
+
 		node.keys = make([]*Data, node.numKeys)
 		for i := 0; i < int(node.numKeys); i++ {
 			node.keys[i] = &Data{}
@@ -96,13 +97,13 @@ func (n *Node) toBytes() []byte {
 	b = append(b, BytesFromUint32(n.parentOffset)...)
 	offset += Int32Size
 
-	// children offsets
-	for i := 0; i < int(n.numKeys)+1; i++ {
-		b = append(b, BytesFromUint32(n.childOffsets[i])...)
-		offset += Int32Size
-	}
-
 	if !n.checkHasLeaf() {
+		// children offsets
+		for i := 0; i < int(n.numKeys)+1; i++ {
+			b = append(b, BytesFromUint32(n.childOffsets[i])...)
+			offset += Int32Size
+		}
+
 		// keys
 		for i := 0; i < int(n.numKeys); i++ {
 			b = append(b, BytesFromUint32(uint32(n.keys[i].size))...)

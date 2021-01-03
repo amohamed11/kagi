@@ -10,15 +10,10 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n := &Node{}
 
 	n.isRoot = TRUE
-	n.isDeleted = FALSE
-
-	n.keys = make([]*Data, 1)
-	n.keys[0] = &Data{data: []byte(k), size: int32(len(k))}
-	n.numKeys = 1
 
 	n.leaves = make([]*Leaf, 1)
 	n.leaves[0] = NewLeaf(k, v)
-	n.numLeaves = 1
+	n.numLeaves++
 
 	n.offset = uint32(Int32Size) + 1
 
@@ -104,7 +99,6 @@ func (db *DB_CONNECTION) getCount() {
 	b := make([]byte, Int32Size)
 	db.readBytesAt(b, 0)
 	db.count = Uint32FromBytes(b)
-
 }
 
 func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
@@ -116,15 +110,11 @@ func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
 //func (db *DB_CONNECTION) removeNode(k string) error {}
 
 func (db *DB_CONNECTION) readBytesAt(b []byte, offset int64) {
-	db.Lock()
-
 	_, err1 := db.file.Seek(offset, 0)
 	Check(err1)
 
 	_, err2 := db.file.Read(b)
 	Check(err2)
-
-	db.Unlock()
 }
 
 func (db *DB_CONNECTION) writeBytesAt(b []byte, offset int64) {
