@@ -15,9 +15,9 @@ func NodeFromBytes(b []byte) *Node {
 	offset += Int16Size
 
 	// count
-	node.numKeys = Uint16FromBytes(b[offset : offset+Int32Size])
+	node.numKeys = Uint16FromBytes(b[offset : offset+Int16Size])
 	offset += Int16Size
-	node.numLeaves = Uint16FromBytes(b[offset : offset+Int32Size])
+	node.numLeaves = Uint16FromBytes(b[offset : offset+Int16Size])
 	offset += Int16Size
 
 	// offsets
@@ -27,7 +27,7 @@ func NodeFromBytes(b []byte) *Node {
 	offset += Int32Size
 
 	// children offsets
-	for i := 0; uint16(i) < node.numKeys+1; i++ {
+	for i := 0; i < int(node.numKeys)+1; i++ {
 		node.childOffsets[i] = Uint32FromBytes(b[offset : offset+Int32Size])
 		offset += Int32Size
 	}
@@ -75,56 +75,51 @@ func LeafFromBytes(b []byte) (*Leaf, int32) {
 }
 
 func (n *Node) toBytes() []byte {
-	b := make([]byte, BlockSize)
+	b := make([]byte, 0, BlockSize)
 	offset := int32(0)
 
 	// flags
-	copy(b[offset:], BytesFromUint16(n.isRoot))
+	b = append(b, BytesFromUint16(n.isRoot)...)
 	offset += Int16Size
-	copy(b[offset:], BytesFromUint16(n.isDeleted))
+	b = append(b, BytesFromUint16(n.isDeleted)...)
 	offset += Int16Size
 
 	// count
-	copy(b[offset:], BytesFromUint16(n.numKeys))
+	b = append(b, BytesFromUint16(n.numKeys)...)
 	offset += Int16Size
-	copy(b[offset:], BytesFromUint16(n.numLeaves))
+	b = append(b, BytesFromUint16(n.numLeaves)...)
 	offset += Int16Size
 
 	// offsets
-	copy(b[offset:], BytesFromUint32(n.offset))
+	b = append(b, BytesFromUint32(n.offset)...)
 	offset += Int32Size
-	copy(b[offset:], BytesFromUint32(n.parentOffset))
+	b = append(b, BytesFromUint32(n.parentOffset)...)
 	offset += Int32Size
 
 	// children offsets
-	for i := 0; i < int(Order); i++ {
-		if uint16(i) < n.numKeys+1 {
-			copy(b[offset:], BytesFromUint32(n.childOffsets[i]))
-		} else {
-			copy(b[offset:], BytesFromUint32(uint32(0)))
-		}
+	for i := 0; i < int(n.numKeys)+1; i++ {
+		b = append(b, BytesFromUint32(n.childOffsets[i])...)
 		offset += Int32Size
 	}
 
 	if !n.checkHasLeaf() {
 		// keys
 		for i := 0; i < int(n.numKeys); i++ {
-			copy(b[offset:], BytesFromUint32(uint32(n.keys[i].size)))
+			b = append(b, BytesFromUint32(uint32(n.keys[i].size))...)
 			offset += Int32Size
-			copy(b[offset:], n.keys[i].data)
+			b = append(b, n.keys[i].data...)
 			offset += n.keys[i].size
 		}
 	} else {
 		// leaves
 		for i := 0; i < int(n.numLeaves); i++ {
-			// fmt.Printf("numLeaves: %d, len: %d\n", n.numLeaves, len(n.leaves))
 			leafBytes := n.leaves[i].toBytes()
-			copy(b[offset:], leafBytes)
+			b = append(b, leafBytes...)
 			offset += int32(len(leafBytes))
 		}
 	}
 
-	return b
+	return b[:BlockSize]
 }
 
 func (l *Leaf) toBytes() []byte {

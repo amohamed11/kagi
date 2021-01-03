@@ -22,7 +22,6 @@ func randSeq(n int) string {
 func TestSet1Key(t *testing.T) {
 	db := Open(testPath)
 	db.Clear()
-	count := db.count
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(10)
 	k := seq[0:5]
@@ -30,9 +29,7 @@ func TestSet1Key(t *testing.T) {
 
 	err := db.Set(k, v)
 	Check(err)
-	if db.count != count+1 {
-		t.Errorf(`actual: %d, expected %d`, db.count, count+1)
-	}
+	db.Close()
 }
 
 func TestGet1Key(t *testing.T) {
@@ -51,6 +48,7 @@ func TestGet1Key(t *testing.T) {
 		t.Error(err)
 		t.Errorf(`actual: "%s", expected: "%s"`, found, v)
 	}
+	db.Close()
 }
 
 func TestSet10Keys(t *testing.T) {
@@ -60,17 +58,13 @@ func TestSet10Keys(t *testing.T) {
 	seq := randSeq(100)
 
 	for i := 0; i < 100; i += 10 {
-		count := db.count
 		k := seq[i : i+5]
 		v := seq[i+5 : i+10]
 
 		err := db.Set(k, v)
 		Check(err)
-		if db.count != count+1 {
-			t.Errorf(`actual: %d, expected %d`, db.count, count+1)
-		}
 	}
-
+	db.Close()
 }
 
 func TestGet10Keys(t *testing.T) {
@@ -92,4 +86,5 @@ func TestGet10Keys(t *testing.T) {
 			t.Errorf(`actual: "%s", expected: "%s"`, found, v)
 		}
 	}
+	db.Close()
 }

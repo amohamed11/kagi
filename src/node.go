@@ -5,11 +5,11 @@ import (
 )
 
 const (
-	Order      int32 = 3                  // the upper limit of children for nodes, 2-Order max children
-	BlockSize  int32 = 4096               // max size of a node
-	Int32Size  int32 = 4                  // size of uint32 used for offsets in node
-	Int16Size  int32 = 2                  // size of uint16 used for flags and counts in nodes
-	HeaderSize int32 = 4080 - (Order * 4) // 4096 - flags(2*2) - counts(2*2) - offsets(2*4) - childOffsets(Order*4)
+	Order         int32 = 3                  // the upper limit of children for nodes, 2-Order max children
+	BlockSize     int32 = 4096               // max size of a node
+	Int32Size     int32 = 4                  // size of uint32 used for offsets in node
+	Int16Size     int32 = 2                  // size of uint16 used for flags and counts in nodes
+	NonHeaderSize int32 = 4080 - (Order * 4) // 4096 - flags(2*2) - counts(2*2) - offsets(2*4) - childOffsets(Order*4)
 )
 
 type Node struct {
@@ -72,7 +72,7 @@ func NewLeaf(k string, v string) *Leaf {
 //  4. Add middle node as child to parent
 //  5. If parent is now full, split parent node as well
 func (db *DB_CONNECTION) splitNode(fullNode *Node) {
-	half := (Order - 1) / 2
+	half := int32(Order / 2)
 	leftKey := fullNode.keys[:half]
 	middleKey := fullNode.keys[half]
 	rightKey := fullNode.keys[half:]
@@ -120,11 +120,11 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftChildNode)
 	db.writeNodeToFile(rightChildNode)
-	db.count += 1
+	db.count += 2
 }
 
 func (db *DB_CONNECTION) splitLeaves(parent *Node) {
-	half := (Order - 1) / 2
+	half := int32(Order / 2)
 	leftLeaf := parent.leaves[:half]
 	middleLeaf := parent.leaves[half]
 	rightLeaf := parent.leaves[half:]
@@ -185,6 +185,7 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 		}
 	}
 	parent.numKeys++
+	log.Printf("numKeys: %d, len: %d\n", parent.numKeys, len(parent.leaves))
 
 	if int32(parent.numKeys) >= Order {
 		db.splitNode(parent)
@@ -199,14 +200,24 @@ func (parent *Node) addLeaf(db *DB_CONNECTION, l *Leaf) {
 		}
 	}
 	parent.numLeaves++
+	log.Printf("numLeaves: %d, len: %d\n", parent.numLeaves, len(parent.leaves))
 
 	if int32(parent.numLeaves) >= Order {
 		db.splitLeaves(parent)
+	} else {
+		db.writeNodeToFile(parent)
 	}
 }
 
 func insertIntoKeys(k *Data, keys []*Data, i int) []*Data {
-	return append(keys[:i], append([]*Data{k}, keys[i:]...)...)
+	if i >= len(keys) {
+		return append(keys, k)
+	}
+
+	tmp := keys[i]
+	keys[i] = k
+
+	return insertIntoKeys(tmp, keys, i+1)
 }
 
 func insertIntoLeaves(l *Leaf, leaves []*Leaf, i int) []*Leaf {
