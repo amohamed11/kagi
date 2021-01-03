@@ -9,7 +9,7 @@ const (
 	FALSE              = 0
 	KEY_NOT_FOUND      = Error("key not found in database.")
 	KEY_ALREADY_EXISTS = Error("key already exists in database.")
-	ERROR_WRITING_NODE = Error("error writing given node to database file")
+	ERROR_WRITING      = Error("error writing to database")
 )
 
 func Check(e error) {

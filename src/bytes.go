@@ -1,6 +1,8 @@
 package kagi
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 func NodeFromBytes(b []byte) *Node {
 	offset := int32(0)
@@ -15,8 +17,6 @@ func NodeFromBytes(b []byte) *Node {
 	// count
 	node.numKeys = Uint16FromBytes(b[offset : offset+Int32Size])
 	offset += Int16Size
-	node.numChildren = Uint16FromBytes(b[offset : offset+Int32Size])
-	offset += Int16Size
 	node.numLeaves = Uint16FromBytes(b[offset : offset+Int32Size])
 	offset += Int16Size
 
@@ -27,7 +27,7 @@ func NodeFromBytes(b []byte) *Node {
 	offset += Int32Size
 
 	// children offsets
-	for i := 0; uint16(i) < node.numChildren; i++ {
+	for i := 0; uint16(i) < node.numKeys+1; i++ {
 		node.childOffsets[i] = Uint32FromBytes(b[offset : offset+Int32Size])
 		offset += Int32Size
 	}
@@ -35,7 +35,8 @@ func NodeFromBytes(b []byte) *Node {
 	// keys
 	if !node.checkHasLeaf() {
 		node.keys = make([]*Data, node.numKeys)
-		for i := 0; uint16(i) < node.numKeys; i++ {
+		for i := 0; i < int(node.numKeys); i++ {
+			node.keys[i] = &Data{}
 			node.keys[i].size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
 			offset += Int32Size
 			node.keys[i].data = b[offset : offset+node.keys[i].size]
@@ -44,7 +45,7 @@ func NodeFromBytes(b []byte) *Node {
 	} else {
 		node.leaves = make([]*Leaf, node.numLeaves)
 		leafOffset := int32(0)
-		for i := 0; uint16(i) < node.numLeaves; i++ {
+		for i := 0; i < int(node.numLeaves); i++ {
 			node.leaves[i], leafOffset = LeafFromBytes(b[offset+leafOffset:])
 		}
 	}
@@ -86,8 +87,6 @@ func (n *Node) toBytes() []byte {
 	// count
 	copy(b[offset:], BytesFromUint16(n.numKeys))
 	offset += Int16Size
-	copy(b[offset:], BytesFromUint16(n.numChildren))
-	offset += Int16Size
 	copy(b[offset:], BytesFromUint16(n.numLeaves))
 	offset += Int16Size
 
@@ -99,7 +98,7 @@ func (n *Node) toBytes() []byte {
 
 	// children offsets
 	for i := 0; i < int(Order); i++ {
-		if uint16(i) < n.numChildren {
+		if uint16(i) < n.numKeys+1 {
 			copy(b[offset:], BytesFromUint32(n.childOffsets[i]))
 		} else {
 			copy(b[offset:], BytesFromUint32(uint32(0)))
@@ -109,7 +108,7 @@ func (n *Node) toBytes() []byte {
 
 	if !n.checkHasLeaf() {
 		// keys
-		for i := 0; uint16(i) < n.numKeys; i++ {
+		for i := 0; i < int(n.numKeys); i++ {
 			copy(b[offset:], BytesFromUint32(uint32(n.keys[i].size)))
 			offset += Int32Size
 			copy(b[offset:], n.keys[i].data)
@@ -117,29 +116,32 @@ func (n *Node) toBytes() []byte {
 		}
 	} else {
 		// leaves
-		for i := 0; uint16(i) < n.numLeaves; i++ {
-			copy(b[offset:], n.leaves[i].toBytes(offset))
+		for i := 0; i < int(n.numLeaves); i++ {
+			// fmt.Printf("numLeaves: %d, len: %d\n", n.numLeaves, len(n.leaves))
+			leafBytes := n.leaves[i].toBytes()
+			copy(b[offset:], leafBytes)
+			offset += int32(len(leafBytes))
 		}
 	}
 
 	return b
 }
 
-func (l *Leaf) toBytes(headerOffset int32) []byte {
-	size := BlockSize - headerOffset
-	b := make([]byte, size)
+func (l *Leaf) toBytes() []byte {
+	b := make([]byte, 0)
 	offset := int32(0)
 
 	// key
-	copy(b[offset:], BytesFromUint32(uint32(l.key.size)))
+	b = append(b, BytesFromUint32(uint32(l.key.size))...)
 	offset += Int32Size
-	copy(b[offset:], l.key.data)
+	b = append(b, l.key.data...)
 	offset += l.key.size
 
 	// value
-	copy(b[offset:], BytesFromUint32(uint32(l.value.size)))
+	b = append(b, BytesFromUint32(uint32(l.value.size))...)
 	offset += Int32Size
-	copy(b[offset:], l.value.data)
+	b = append(b, l.value.data...)
+	offset += l.value.size
 
 	return b
 }

@@ -1,8 +1,9 @@
 package kagi
 
-func (db *DB_CONNECTION) setRootNode() {
-	db.root = db.getNodeAt(0)
-	db.count = int(db.root.numChildren) + 1
+// count is saved at 0, and root right after it
+func (db *DB_CONNECTION) loadDB() {
+	db.getCount()
+	db.root = db.getNodeAt(uint32(Int32Size))
 }
 
 func (db *DB_CONNECTION) createRootNode(k string, v string) {
@@ -18,6 +19,8 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n.leaves = make([]*Leaf, 1)
 	n.leaves[0] = newLeaf
 	n.numLeaves++
+
+	n.offset = uint32(Int32Size)
 
 	db.root = n
 	db.count++
@@ -100,21 +103,31 @@ func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
 
 func (db *DB_CONNECTION) getNodeAt(offset uint32) *Node {
 	b := make([]byte, BlockSize)
-
-	db.readBytesAt(b, offset)
-
+	db.readBytesAt(b, int64(offset))
 	n := NodeFromBytes(b)
 
 	return n
 }
 
+func (db *DB_CONNECTION) getCount() {
+	b := make([]byte, Int32Size)
+	db.readBytesAt(b, 0)
+	db.count = Uint32FromBytes(b)
+
+}
+
+func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
+	nodeBytes := n.toBytes()
+	db.writeBytesAt(nodeBytes, int64(n.offset))
+}
+
 // TODO delete node
 //func (db *DB_CONNECTION) removeNode(k string) error {}
 
-func (db *DB_CONNECTION) readBytesAt(b []byte, offset uint32) {
+func (db *DB_CONNECTION) readBytesAt(b []byte, offset int64) {
 	db.Lock()
 
-	_, err1 := db.file.Seek(int64(offset), 0)
+	_, err1 := db.file.Seek(offset, 0)
 	Check(err1)
 
 	_, err2 := db.file.Read(b)
@@ -123,15 +136,17 @@ func (db *DB_CONNECTION) readBytesAt(b []byte, offset uint32) {
 	db.Unlock()
 }
 
-func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
+func (db *DB_CONNECTION) writeBytesAt(b []byte, offset int64) {
 	db.Lock()
 
-	_, err1 := db.file.Seek(int64(n.offset), 0)
+	_, err1 := db.file.Seek(offset, 0)
 	Check(err1)
-	written, err2 := db.file.Write(n.toBytes())
+
+	written, err2 := db.file.Write(b)
 	Check(err2)
+
 	if written < int(BlockSize) {
-		Check(ERROR_WRITING_NODE)
+		Check(ERROR_WRITING)
 	}
 
 	db.Unlock()

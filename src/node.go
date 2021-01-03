@@ -1,11 +1,15 @@
 package kagi
 
+import (
+	"log"
+)
+
 const (
 	Order      int32 = 3                  // the upper limit of children for nodes, 2-Order max children
 	BlockSize  int32 = 4096               // max size of a node
 	Int32Size  int32 = 4                  // size of uint32 used for offsets in node
 	Int16Size  int32 = 2                  // size of uint16 used for flags and counts in nodes
-	HeaderSize int32 = 4078 - (Order * 4) // 4096 - flags(2*2) - counts(3*2) - offsets(2*4) - childOffsets(Order*4)
+	HeaderSize int32 = 4080 - (Order * 4) // 4096 - flags(2*2) - counts(2*2) - offsets(2*4) - childOffsets(Order*4)
 )
 
 type Node struct {
@@ -15,9 +19,8 @@ type Node struct {
 	isDeleted uint16
 
 	// Counts
-	numKeys     uint16
-	numChildren uint16
-	numLeaves   uint16
+	numKeys   uint16
+	numLeaves uint16
 
 	// Offsets
 	offset       uint32
@@ -74,10 +77,12 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	middleKey := fullNode.keys[half]
 	rightKey := fullNode.keys[half:]
 
+	log.Println("splitting node")
+	log.Printf("parent node now is key: %s\n", middleKey.data)
+
 	// create new node using middle key
 	middleBranchNode := &Node{
 		numKeys:      1,
-		numChildren:  2,
 		offset:       fullNode.offset,
 		parentOffset: fullNode.parentOffset,
 	}
@@ -92,7 +97,6 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	// create left & right nodes & link old node's children
 	leftChildNode := &Node{
 		numKeys:      uint16(half),
-		numChildren:  uint16(half + 1),
 		offset:       middleBranchNode.childOffsets[0],
 		parentOffset: middleBranchNode.offset,
 		keys:         leftKey,
@@ -101,7 +105,6 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 
 	rightChildNode := &Node{
 		numKeys:      uint16(Order - half),
-		numChildren:  uint16(Order - half + 1),
 		offset:       middleBranchNode.childOffsets[1],
 		parentOffset: middleBranchNode.offset,
 		keys:         rightKey,
@@ -117,7 +120,7 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftChildNode)
 	db.writeNodeToFile(rightChildNode)
-	db.count += 2
+	db.count += 1
 }
 
 func (db *DB_CONNECTION) splitLeaves(parent *Node) {
@@ -126,10 +129,12 @@ func (db *DB_CONNECTION) splitLeaves(parent *Node) {
 	middleLeaf := parent.leaves[half]
 	rightLeaf := parent.leaves[half:]
 
+	log.Println("splitting leaves")
+	log.Printf("creating new branching node with key: %s\n", middleLeaf.key.data)
+
 	// create new node using middle key
 	middleBranchNode := &Node{
 		numKeys:      1,
-		numChildren:  2,
 		offset:       uint32(BlockSize) * uint32(db.count),
 		parentOffset: parent.offset,
 	}
@@ -155,6 +160,10 @@ func (db *DB_CONNECTION) splitLeaves(parent *Node) {
 		leaves:       rightLeaf,
 	}
 
+	// parent no longer has leaf children
+	parent.leaves = []*Leaf{}
+	parent.numLeaves = 0
+
 	// update parent with the middle key
 	parent.addChildNode(db, middleBranchNode)
 	db.writeNodeToFile(parent)
@@ -163,7 +172,7 @@ func (db *DB_CONNECTION) splitLeaves(parent *Node) {
 	db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftLeafNode)
 	db.writeNodeToFile(rightLeafNode)
-	db.count += 2
+	db.count += 1
 }
 
 // child node should have a single key
@@ -177,7 +186,7 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 	}
 	parent.numKeys++
 
-	if int32(parent.numKeys) == Order {
+	if int32(parent.numKeys) >= Order {
 		db.splitNode(parent)
 	}
 }
@@ -191,7 +200,7 @@ func (parent *Node) addLeaf(db *DB_CONNECTION, l *Leaf) {
 	}
 	parent.numLeaves++
 
-	if int32(parent.numLeaves) == Order {
+	if int32(parent.numLeaves) >= Order {
 		db.splitLeaves(parent)
 	}
 }
@@ -201,7 +210,14 @@ func insertIntoKeys(k *Data, keys []*Data, i int) []*Data {
 }
 
 func insertIntoLeaves(l *Leaf, leaves []*Leaf, i int) []*Leaf {
-	return append(leaves[:i], append([]*Leaf{l}, leaves[i:]...)...)
+	if i >= len(leaves) {
+		return append(leaves, l)
+	}
+
+	tmp := leaves[i]
+	leaves[i] = l
+
+	return insertIntoLeaves(tmp, leaves, i+1)
 }
 
 func insertIntoOffsets(offset uint32, childOffsets [Order]uint32, index int) {

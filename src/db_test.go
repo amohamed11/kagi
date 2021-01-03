@@ -53,7 +53,7 @@ func TestGet1Key(t *testing.T) {
 	}
 }
 
-func TestSet10Key(t *testing.T) {
+func TestSet10Keys(t *testing.T) {
 	db := Open(testPath)
 	db.Clear()
 	rand.Seed(time.Now().UnixNano())
@@ -73,11 +73,11 @@ func TestSet10Key(t *testing.T) {
 
 }
 
-func TestGet10Key(t *testing.T) {
+func TestGet10Keys(t *testing.T) {
 	db := Open(testPath)
 	db.Clear()
 	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(10)
+	seq := randSeq(100)
 
 	for i := 0; i < 100; i += 10 {
 		k := seq[i : i+5]

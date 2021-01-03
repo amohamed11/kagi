@@ -9,7 +9,7 @@ type DB_CONNECTION struct {
 	sync.Mutex
 	file  *os.File
 	root  *Node
-	count int
+	count uint32
 }
 
 func Open(path string) *DB_CONNECTION {
@@ -23,16 +23,16 @@ func Open(path string) *DB_CONNECTION {
 	Check(err2)
 
 	if fileInfo.Size() != 0 {
-		db.setRootNode()
+		db.loadDB()
 	}
 
 	return db
 }
 
 func (db *DB_CONNECTION) Close() {
-	db.Lock()
+	// update count
+	db.writeBytesAt(BytesFromUint32(db.count), 0)
 	err := db.file.Close()
-	db.Unlock()
 	Check(err)
 }
 
