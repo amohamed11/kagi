@@ -1,30 +1,55 @@
 package kagi
 
 import (
+	"log"
 	"os"
 	"sync"
 )
 
 type DB_CONNECTION struct {
 	sync.Mutex
-	file     *os.File
-	filePath string
-	root     *Node
-	count    uint32
+	file        *os.File
+	filePath    string
+	root        *Node
+	count       uint32
+	infoLogger  *log.Logger
+	errorLogger *log.Logger
 }
 
-func Open(path string) *DB_CONNECTION {
+type DB_OPTIONS struct {
+	path  string // path for database, otherwise a default is chosen
+	logs  string // path to logs file, no logging if left empty
+	clean bool   // clean database
+}
+
+func Open(options DB_OPTIONS) *DB_CONNECTION {
 	db := &DB_CONNECTION{}
 
-	file, err1 := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
-	Check(err1)
+	if options.path != "" {
+		db.filePath = options.path
+	}
 
-	db.filePath = path
+	if options.logs != "" {
+		logFile, err := os.OpenFile(options.logs, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+		if err != nil {
+			log.Println(err.Error())
+		} else {
+			db.infoLogger = log.New(logFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+			db.errorLogger = log.New(logFile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+		}
+	}
+
+	file, err1 := os.OpenFile(db.filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+	db.logError(err1)
+
 	db.file = file
-	fileInfo, err2 := db.file.Stat()
-	Check(err2)
 
-	if fileInfo.Size() != 0 {
+	fileInfo, err2 := db.file.Stat()
+	db.logError(err2)
+
+	if options.clean {
+		db.Clear()
+	} else if fileInfo.Size() != 0 {
 		db.loadDB()
 	}
 
@@ -44,7 +69,7 @@ func (db *DB_CONNECTION) Clear() {
 	db.root = nil
 
 	err := db.file.Truncate(0)
-	Check(err)
+	db.logError(err)
 
 	db.Unlock()
 }

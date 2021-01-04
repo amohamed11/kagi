@@ -1,9 +1,5 @@
 package kagi
 
-import (
-	"log"
-)
-
 const (
 	Order         int32 = 5                  // the upper limit of children for nodes, 2-Order max children
 	BlockSize     int32 = 4096               // max size of a node
@@ -77,8 +73,8 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	middleKey := fullNode.keys[half]
 	rightKey := fullNode.keys[half:]
 
-	log.Println("splitting branching node")
-	log.Printf("parent node now is key: %s\n", middleKey.data)
+	db.logInfo("splitting branching node")
+	db.logInfo("parent node now is key: %s", middleKey.data)
 
 	// create new node using middle key
 	middleBranchNode := &Node{
@@ -135,8 +131,8 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 	middleLeaf := fullLeafNode.leaves[half]
 	rightLeaf := fullLeafNode.leaves[half:]
 
-	log.Println("splitting leaves")
-	log.Printf("creating new branching node with key: %s\n", middleLeaf.key.data)
+	db.logInfo("splitting leaves")
+	db.logInfo("creating new branching node with key: %s", middleLeaf.key.data)
 
 	// create new node using middle key
 	middleBranchNode := &Node{

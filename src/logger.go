@@ -1,5 +1,7 @@
 package kagi
 
+import "fmt"
+
 type Error string
 
 func (e Error) Error() string { return string(e) }
@@ -12,8 +14,19 @@ const (
 	ERROR_WRITING      = Error("error writing to database")
 )
 
-func Check(e error) {
+func (db *DB_CONNECTION) logError(e error) {
 	if e != nil {
-		panic(e)
+		if db.errorLogger != nil {
+			db.errorLogger.Fatal(e.Error())
+		} else {
+			panic(e)
+		}
+	}
+}
+
+func (db *DB_CONNECTION) logInfo(info string, v ...interface{}) {
+	if db.infoLogger != nil {
+		s := fmt.Sprintf(info, v...)
+		db.infoLogger.Println(s)
 	}
 }
