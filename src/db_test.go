@@ -10,7 +10,7 @@ var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 const testPath = "test.kagi"
 
-var dbOptions = DB_OPTIONS{
+var testOptions = DB_OPTIONS{
 	path:  testPath,
 	logs:  "test_logs.txt",
 	clean: true,
@@ -26,7 +26,7 @@ func randSeq(n int) string {
 }
 
 func TestSet1Key(t *testing.T) {
-	db := Open(dbOptions)
+	db := Open(testOptions)
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(10)
 	k := seq[0:5]
@@ -38,7 +38,7 @@ func TestSet1Key(t *testing.T) {
 }
 
 func TestGet1Key(t *testing.T) {
-	db := Open(dbOptions)
+	db := Open(testOptions)
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(10)
 	k := seq[0:5]
@@ -56,7 +56,7 @@ func TestGet1Key(t *testing.T) {
 }
 
 func TestSet10Keys(t *testing.T) {
-	db := Open(dbOptions)
+	db := Open(testOptions)
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(100)
 
@@ -71,7 +71,7 @@ func TestSet10Keys(t *testing.T) {
 }
 
 func TestGet10Keys(t *testing.T) {
-	db := Open(dbOptions)
+	db := Open(testOptions)
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(100)
 
@@ -87,34 +87,6 @@ func TestGet10Keys(t *testing.T) {
 			t.Error(err)
 			t.Errorf(`actual: "%s", expected: "%s"`, found, v)
 		}
-	}
-	db.Close()
-}
-
-func BenchmarkSet(b *testing.B) {
-	db := Open(dbOptions)
-	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(10000)
-
-	for i := 0; i < 10000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
-
-		_ = db.Set(k, v)
-	}
-	db.Close()
-}
-
-func BenchmarkGet(b *testing.B) {
-	db := Open(dbOptions)
-	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(10000)
-
-	for i := 0; i < 10000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
-
-		_ = db.Set(k, v)
 	}
 	db.Close()
 }
