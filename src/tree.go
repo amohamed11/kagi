@@ -1,9 +1,13 @@
 package kagi
 
+import "log"
+
 // count is saved at 0, and root right after it
 func (db *DB_CONNECTION) loadDB() {
 	db.getCount()
-	db.root = db.getNodeAt(uint32(Int32Size) + 1)
+	db.root = db.getNodeAt(uint32(Int32Size))
+
+	log.Println("loaded root node")
 }
 
 func (db *DB_CONNECTION) createRootNode(k string, v string) {
@@ -15,7 +19,7 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n.leaves[0] = NewLeaf(k, v)
 	n.numLeaves++
 
-	n.offset = uint32(Int32Size) + 1
+	n.offset = uint32(Int32Size)
 
 	db.root = n
 	db.count = 1
@@ -24,7 +28,10 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 
 func (db *DB_CONNECTION) insert(k string, v string) error {
 	// if tree is empty add a new root node
+	log.Printf("inserting (key: %s, value: %s)\n", k, v)
+
 	if db.count == 0 {
+		log.Println("creating a root node")
 		db.createRootNode(k, v)
 		return nil
 	}
@@ -110,6 +117,8 @@ func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
 //func (db *DB_CONNECTION) removeNode(k string) error {}
 
 func (db *DB_CONNECTION) readBytesAt(b []byte, offset int64) {
+	log.Printf("reading bytes at offset: %d\n", offset)
+
 	_, err1 := db.file.Seek(offset, 0)
 	Check(err1)
 
@@ -118,6 +127,8 @@ func (db *DB_CONNECTION) readBytesAt(b []byte, offset int64) {
 }
 
 func (db *DB_CONNECTION) writeBytesAt(b []byte, offset int64) {
+	log.Printf("writing bytes at offset: %d\n", offset)
+
 	_, err1 := db.file.Seek(offset, 0)
 	Check(err1)
 

@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	Order         int32 = 3                  // the upper limit of children for nodes, 2-Order max children
+	Order         int32 = 5                  // the upper limit of children for nodes, 2-Order max children
 	BlockSize     int32 = 4096               // max size of a node
 	Int32Size     int32 = 4                  // size of uint32 used for offsets in node
 	Int16Size     int32 = 2                  // size of uint16 used for flags and counts in nodes
@@ -45,7 +45,7 @@ type Leaf struct {
 }
 
 type Data struct {
-	size int32
+	size uint32
 	data []byte
 }
 
@@ -54,12 +54,12 @@ func NewLeaf(k string, v string) *Leaf {
 
 	l.key = &Data{
 		data: []byte(k),
-		size: int32(len(k)),
+		size: uint32(len(k)),
 	}
 
 	l.value = &Data{
 		data: []byte(v),
-		size: int32(len(v)),
+		size: uint32(len(v)),
 	}
 
 	return l
@@ -77,7 +77,7 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	middleKey := fullNode.keys[half]
 	rightKey := fullNode.keys[half:]
 
-	log.Println("splitting node")
+	log.Println("splitting branching node")
 	log.Printf("parent node now is key: %s\n", middleKey.data)
 
 	// create new node using middle key
@@ -90,8 +90,8 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	middleBranchNode.keys[0] = middleKey
 
 	// offsets for children are at end of the file
-	middleBranchNode.childOffsets = make([]uint32, middleBranchNode.numKeys+1)
-	middleBranchNode.childOffsets[0] = uint32(BlockSize) * uint32(db.count)
+	middleBranchNode.childOffsets = make([]uint32, 2)
+	middleBranchNode.childOffsets[0] = uint32(BlockSize)*db.count + uint32(Int32Size)
 	middleBranchNode.childOffsets[1] = middleBranchNode.childOffsets[0] + uint32(BlockSize)
 
 	// create left & right nodes & link old node's children
@@ -129,11 +129,11 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	db.count += 2
 }
 
-func (db *DB_CONNECTION) splitLeaves(parent *Node) {
+func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 	half := int32(Order / 2)
-	leftLeaf := parent.leaves[:half]
-	middleLeaf := parent.leaves[half]
-	rightLeaf := parent.leaves[half:]
+	leftLeaf := fullLeafNode.leaves[:half]
+	middleLeaf := fullLeafNode.leaves[half]
+	rightLeaf := fullLeafNode.leaves[half:]
 
 	log.Println("splitting leaves")
 	log.Printf("creating new branching node with key: %s\n", middleLeaf.key.data)
@@ -141,16 +141,16 @@ func (db *DB_CONNECTION) splitLeaves(parent *Node) {
 	// create new node using middle key
 	middleBranchNode := &Node{
 		numKeys:      1,
-		offset:       uint32(BlockSize) * uint32(db.count),
-		parentOffset: parent.offset,
+		offset:       fullLeafNode.offset,
+		parentOffset: fullLeafNode.parentOffset,
 	}
 	middleBranchNode.keys = make([]*Data, 1)
 	middleBranchNode.keys[0] = middleLeaf.key
 
 	// offsets for left & right splits under the middle
-	middleBranchNode.childOffsets = make([]uint32, middleBranchNode.numKeys+1)
-	middleBranchNode.childOffsets[0] = middleBranchNode.offset + uint32(BlockSize)
-	middleBranchNode.childOffsets[1] = middleBranchNode.offset + uint32(BlockSize*2)
+	middleBranchNode.childOffsets = make([]uint32, 2)
+	middleBranchNode.childOffsets[0] = uint32(BlockSize)*db.count + uint32(Int32Size)
+	middleBranchNode.childOffsets[1] = middleBranchNode.childOffsets[0] + uint32(BlockSize)
 
 	// create left & right nodes & populate with split leaves
 	leftLeafNode := &Node{
@@ -167,13 +167,13 @@ func (db *DB_CONNECTION) splitLeaves(parent *Node) {
 		leaves:       rightLeaf,
 	}
 
-	// parent no longer has leaf children
-	parent.leaves = []*Leaf{}
-	parent.numLeaves = 0
-
-	// update parent with the middle key
-	parent.addChildNode(db, middleBranchNode)
-	db.writeNodeToFile(parent)
+	if fullLeafNode.isRoot == TRUE {
+		middleBranchNode.isRoot = TRUE
+	} else {
+		// update parent with the middle key
+		fullLeafNode.addChildNode(db, middleBranchNode)
+		db.writeNodeToFile(fullLeafNode)
+	}
 
 	// write newly create nodes
 	db.writeNodeToFile(middleBranchNode)
@@ -201,8 +201,6 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 	}
 	parent.numKeys++
 
-	log.Printf("numKeys: %d, len: %d\n", parent.numKeys, len(parent.keys))
-
 	if int32(parent.numKeys) >= Order {
 		db.splitNode(parent)
 	}
@@ -221,8 +219,6 @@ func (parent *Node) addLeaf(db *DB_CONNECTION, l *Leaf) {
 		parent.leaves = insertIntoLeaves(l, parent.leaves, i)
 	}
 	parent.numLeaves++
-
-	log.Printf("numLeaves: %d, len: %d\n", parent.numLeaves, len(parent.leaves))
 
 	if int32(parent.numLeaves) >= Order {
 		db.splitLeaves(parent)

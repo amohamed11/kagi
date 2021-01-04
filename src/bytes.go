@@ -38,10 +38,10 @@ func NodeFromBytes(b []byte) *Node {
 		node.keys = make([]*Data, node.numKeys)
 		for i := 0; i < int(node.numKeys); i++ {
 			node.keys[i] = &Data{}
-			node.keys[i].size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
+			node.keys[i].size = Uint32FromBytes(b[offset : offset+Int32Size])
 			offset += Int32Size
-			node.keys[i].data = b[offset : offset+node.keys[i].size]
-			offset += node.keys[i].size
+			node.keys[i].data = b[offset : offset+int32(node.keys[i].size)]
+			offset += int32(node.keys[i].size)
 		}
 	} else {
 		node.leaves = make([]*Leaf, node.numLeaves)
@@ -60,17 +60,17 @@ func LeafFromBytes(b []byte) (*Leaf, int32) {
 
 	// key
 	leaf.key = &Data{}
-	leaf.key.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
+	leaf.key.size = Uint32FromBytes(b[offset : offset+Int32Size])
 	offset += Int32Size
-	leaf.key.data = b[offset : offset+leaf.key.size]
-	offset += leaf.key.size
+	leaf.key.data = b[offset : offset+int32(leaf.key.size)]
+	offset += int32(leaf.key.size)
 
 	// value
 	leaf.value = &Data{}
-	leaf.value.size = int32(Uint32FromBytes(b[offset : offset+Int32Size]))
+	leaf.value.size = Uint32FromBytes(b[offset : offset+Int32Size])
 	offset += Int32Size
-	leaf.value.data = b[offset : offset+leaf.value.size]
-	offset += leaf.value.size
+	leaf.value.data = b[offset : offset+int32(leaf.value.size)]
+	offset += int32(leaf.value.size)
 
 	return leaf, offset
 }
@@ -106,10 +106,10 @@ func (n *Node) toBytes() []byte {
 
 		// keys
 		for i := 0; i < int(n.numKeys); i++ {
-			b = append(b, BytesFromUint32(uint32(n.keys[i].size))...)
+			b = append(b, BytesFromUint32(n.keys[i].size)...)
 			offset += Int32Size
 			b = append(b, n.keys[i].data...)
-			offset += n.keys[i].size
+			offset += int32(n.keys[i].size)
 		}
 	} else {
 		// leaves
@@ -128,16 +128,16 @@ func (l *Leaf) toBytes() []byte {
 	offset := int32(0)
 
 	// key
-	b = append(b, BytesFromUint32(uint32(l.key.size))...)
+	b = append(b, BytesFromUint32(l.key.size)...)
 	offset += Int32Size
 	b = append(b, l.key.data...)
-	offset += l.key.size
+	offset += int32(l.key.size)
 
 	// value
-	b = append(b, BytesFromUint32(uint32(l.value.size))...)
+	b = append(b, BytesFromUint32(l.value.size)...)
 	offset += Int32Size
 	b = append(b, l.value.data...)
-	offset += l.value.size
+	offset += int32(l.value.size)
 
 	return b
 }
