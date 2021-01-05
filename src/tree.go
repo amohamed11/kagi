@@ -40,8 +40,8 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 
 	for i := 0; i < int(parent.numLeaves); i++ {
 		// found leaf with correct key or no more leaves left
-		if k <= string(parent.leaves[i].key.data) {
-			keyFound = string(parent.leaves[i].key.data)
+		if k <= string(parent.leaves[i].key) {
+			keyFound = string(parent.leaves[i].key)
 			break
 		}
 	}
@@ -61,12 +61,12 @@ func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
 
 	for index = 0; index < int(parent.numLeaves); index++ {
 		// found leaf with correct key or no more leaves left
-		if string(parent.leaves[index].key.data) == k {
+		if string(parent.leaves[index].key) == k {
 			break
 		}
 	}
 
-	if string(parent.leaves[index].key.data) == k {
+	if string(parent.leaves[index].key) == k {
 		return parent.leaves[index], nil
 	}
 
@@ -78,7 +78,7 @@ func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
 	if !currentNode.checkHasLeaf() {
 		i := 0
 		for i = 0; i < int(currentNode.numKeys); i++ {
-			if k < string(currentNode.keys[i].data) {
+			if k < string(currentNode.keys[i]) {
 				n := db.getNodeAt(currentNode.childOffsets[i])
 				return db.searchNode(k, n)
 			}

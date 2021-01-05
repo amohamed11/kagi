@@ -35,13 +35,10 @@ func NodeFromBytes(b []byte) *Node {
 			offset += Int32Size
 		}
 
-		node.keys = make([]*Data, node.numKeys)
+		node.keys = make([][]byte, node.numKeys)
 		for i := 0; i < int(node.numKeys); i++ {
-			node.keys[i] = &Data{}
-			node.keys[i].size = Uint32FromBytes(b[offset : offset+Int32Size])
-			offset += Int32Size
-			node.keys[i].data = b[offset : offset+int32(node.keys[i].size)]
-			offset += int32(node.keys[i].size)
+			node.keys[i] = b[offset : offset+MaxKeySize]
+			offset += MaxKeySize
 		}
 	} else {
 		node.leaves = make([]*Leaf, node.numLeaves)
@@ -59,18 +56,12 @@ func LeafFromBytes(b []byte) (*Leaf, int32) {
 	leaf := &Leaf{}
 
 	// key
-	leaf.key = &Data{}
-	leaf.key.size = Uint32FromBytes(b[offset : offset+Int32Size])
-	offset += Int32Size
-	leaf.key.data = b[offset : offset+int32(leaf.key.size)]
-	offset += int32(leaf.key.size)
+	leaf.key = b[offset : offset+MaxKeySize]
+	offset += MaxKeySize
 
 	// value
-	leaf.value = &Data{}
-	leaf.value.size = Uint32FromBytes(b[offset : offset+Int32Size])
-	offset += Int32Size
-	leaf.value.data = b[offset : offset+int32(leaf.value.size)]
-	offset += int32(leaf.value.size)
+	leaf.value = b[offset : offset+MaxValueSize]
+	offset += MaxValueSize
 
 	return leaf, offset
 }
@@ -106,17 +97,14 @@ func (n *Node) toBytes() []byte {
 
 		// keys
 		for i := 0; i < int(n.numKeys); i++ {
-			b = append(b, BytesFromUint32(n.keys[i].size)...)
-			offset += Int32Size
-			b = append(b, n.keys[i].data...)
-			offset += int32(n.keys[i].size)
+			b = append(b, n.keys[i]...)
+			offset += MaxKeySize
 		}
 	} else {
 		// leaves
 		for i := 0; i < int(n.numLeaves); i++ {
-			leafBytes := n.leaves[i].toBytes()
-			b = append(b, leafBytes...)
-			offset += int32(len(leafBytes))
+			b = append(b, n.leaves[i].toBytes()...)
+			offset += MaxValueSize
 		}
 	}
 
@@ -128,16 +116,12 @@ func (l *Leaf) toBytes() []byte {
 	offset := int32(0)
 
 	// key
-	b = append(b, BytesFromUint32(l.key.size)...)
-	offset += Int32Size
-	b = append(b, l.key.data...)
-	offset += int32(l.key.size)
+	b = append(b, l.key...)
+	offset += MaxKeySize
 
 	// value
-	b = append(b, BytesFromUint32(l.value.size)...)
-	offset += Int32Size
-	b = append(b, l.value.data...)
-	offset += int32(l.value.size)
+	b = append(b, l.value...)
+	offset += MaxValueSize
 
 	return b
 }

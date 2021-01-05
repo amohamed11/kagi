@@ -90,7 +90,7 @@ func (db *DB_CONNECTION) Get(key string) (string, error) {
 	if leaf == nil {
 		return "", err
 	}
-	return string(leaf.value.data), err
+	return string(leaf.value), err
 }
 
 // func (db *DB_CONNECTION) Delete(key string) error {

@@ -1,10 +1,13 @@
 package kagi
 
 const (
-	Order         int32 = 5                  // the upper limit of children for nodes, 2-Order max children
-	BlockSize     int32 = 4096               // max size of a node
-	Int32Size     int32 = 4                  // size of uint32 used for offsets in node
-	Int16Size     int32 = 2                  // size of uint16 used for flags and counts in nodes
+	Order         int32 = 20   // the upper limit for number of keys that node can hold
+	Degree        int32 = 10   // the lower limit for number of keys, (10-20 keys)
+	BlockSize     int32 = 4096 // max size of a node
+	Int32Size     int32 = 4    // size of uint32 used for offsets in node
+	Int16Size     int32 = 2    // size of uint16 used for flags and counts in nodes
+	MaxKeySize    int32 = 48
+	MaxValueSize  int32 = 144
 	NonHeaderSize int32 = 4080 - (Order * 4) // 4096 - flags(2*2) - counts(2*2) - offsets(2*4) - childOffsets(Order*4)
 )
 
@@ -25,7 +28,7 @@ type Node struct {
 	// -------------
 
 	// branching node
-	keys []*Data
+	keys [][]byte
 
 	// leaf nodes
 	leaves []*Leaf
@@ -33,30 +36,22 @@ type Node struct {
 
 type Leaf struct {
 	// data
-	key   *Data
-	value *Data
+	key   []byte
+	value []byte
 
 	// TODO Calculate in memory
 	// freeSpace int32
 }
 
 type Data struct {
-	size uint32
 	data []byte
 }
 
 func NewLeaf(k string, v string) *Leaf {
 	l := &Leaf{}
 
-	l.key = &Data{
-		data: []byte(k),
-		size: uint32(len(k)),
-	}
-
-	l.value = &Data{
-		data: []byte(v),
-		size: uint32(len(v)),
-	}
+	l.key = []byte(k)
+	l.value = []byte(v)
 
 	return l
 }
@@ -74,15 +69,16 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	rightKey := fullNode.keys[half:]
 
 	db.logInfo("splitting branching node")
-	db.logInfo("parent node now is key: %s", middleKey.data)
+	db.logInfo("parent node now is key: %s", middleKey)
 
 	// create new node using middle key
 	middleBranchNode := &Node{
+		isRoot:       fullNode.isRoot,
 		numKeys:      1,
 		offset:       fullNode.offset,
 		parentOffset: fullNode.parentOffset,
 	}
-	middleBranchNode.keys = make([]*Data, 1)
+	middleBranchNode.keys = make([][]byte, 1)
 	middleBranchNode.keys[0] = middleKey
 
 	// offsets for children are at end of the file
@@ -92,13 +88,13 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 
 	// create left & right nodes & link old node's children
 	leftChildNode := &Node{
-		numKeys:      uint16(half),
+		numKeys:      uint16(half) + 1,
 		offset:       middleBranchNode.childOffsets[0],
 		parentOffset: middleBranchNode.offset,
 		keys:         leftKey,
 	}
 	leftChildNode.childOffsets = make([]uint32, 0, leftChildNode.numKeys+1)
-	leftChildNode.childOffsets = append(leftChildNode.childOffsets, fullNode.childOffsets[:half]...)
+	leftChildNode.childOffsets = append(leftChildNode.childOffsets, fullNode.childOffsets[:half+1]...)
 
 	rightChildNode := &Node{
 		numKeys:      uint16(Order - half),
@@ -107,10 +103,10 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 		keys:         rightKey,
 	}
 	rightChildNode.childOffsets = make([]uint32, 0, rightChildNode.numKeys+1)
-	rightChildNode.childOffsets = append(rightChildNode.childOffsets, fullNode.childOffsets[half:]...)
+	rightChildNode.childOffsets = append(rightChildNode.childOffsets, fullNode.childOffsets[half+1:]...)
 
 	if fullNode.isRoot == TRUE {
-		middleBranchNode.isRoot = TRUE
+		db.writeNodeToFile(middleBranchNode)
 	} else {
 		// update parent with the middle key
 		parent := db.getNodeAt(middleBranchNode.parentOffset)
@@ -119,7 +115,6 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	}
 
 	// write newly create nodes
-	db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftChildNode)
 	db.writeNodeToFile(rightChildNode)
 	db.count += 2
@@ -132,15 +127,16 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 	rightLeaf := fullLeafNode.leaves[half:]
 
 	db.logInfo("splitting leaves")
-	db.logInfo("creating new branching node with key: %s", middleLeaf.key.data)
+	db.logInfo("creating new branching node with key: %s", middleLeaf.key)
 
 	// create new node using middle key
 	middleBranchNode := &Node{
+		isRoot:       fullLeafNode.isRoot,
 		numKeys:      1,
 		offset:       fullLeafNode.offset,
 		parentOffset: fullLeafNode.parentOffset,
 	}
-	middleBranchNode.keys = make([]*Data, 1)
+	middleBranchNode.keys = make([][]byte, 1)
 	middleBranchNode.keys[0] = middleLeaf.key
 
 	// offsets for left & right splits under the middle
@@ -163,26 +159,28 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 		leaves:       rightLeaf,
 	}
 
+	// update parent with the middle key
 	if fullLeafNode.isRoot == TRUE {
-		middleBranchNode.isRoot = TRUE
+		db.writeNodeToFile(middleBranchNode)
 	} else {
-		// update parent with the middle key
-		fullLeafNode.addChildNode(db, middleBranchNode)
-		db.writeNodeToFile(fullLeafNode)
+		parent := db.getNodeAt(middleBranchNode.parentOffset)
+		parent.addChildNode(db, middleBranchNode)
+		db.writeNodeToFile(parent)
 	}
 
 	// write newly create nodes
-	db.writeNodeToFile(middleBranchNode)
+	// db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftLeafNode)
 	db.writeNodeToFile(rightLeafNode)
 	db.count += 1
 }
 
 // child node should have a single key
+// adds the keys & childoffsets of the node
 func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 	var i int
 	for i = 0; i < int(parent.numKeys); i++ {
-		if string(child.keys[0].data) < string(parent.keys[i].data) {
+		if string(child.keys[0]) < string(parent.keys[i]) {
 			parent.keys = insertIntoKeys(child.keys[0], parent.keys, i)
 			parent.childOffsets = insertIntoOffsets(child.childOffsets[0], parent.childOffsets, i)
 			parent.childOffsets = insertIntoOffsets(child.childOffsets[1], parent.childOffsets, i+1)
@@ -192,7 +190,7 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 	// insert at rightmost index
 	if i == int(parent.numKeys) {
 		parent.keys = insertIntoKeys(child.keys[0], parent.keys, i)
-		parent.childOffsets = insertIntoOffsets(child.offset, parent.childOffsets, i)
+		parent.childOffsets = insertIntoOffsets(child.childOffsets[0], parent.childOffsets, i)
 		parent.childOffsets = insertIntoOffsets(child.childOffsets[1], parent.childOffsets, i+1)
 	}
 	parent.numKeys++
@@ -205,7 +203,7 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 func (parent *Node) addLeaf(db *DB_CONNECTION, l *Leaf) {
 	var i int
 	for i = 0; i < int(parent.numLeaves); i++ {
-		if string(l.key.data) < string(parent.leaves[i].key.data) {
+		if string(l.key) < string(parent.leaves[i].key) {
 			parent.leaves = insertIntoLeaves(l, parent.leaves, i)
 			break
 		}
@@ -224,7 +222,7 @@ func (parent *Node) addLeaf(db *DB_CONNECTION, l *Leaf) {
 }
 
 // Modified from: https://stackoverflow.com/a/61822301
-func insertIntoKeys(k *Data, keys []*Data, i int) []*Data {
+func insertIntoKeys(k []byte, keys [][]byte, i int) [][]byte {
 	if len(keys) == i { // nil or empty slice or after last element
 		return append(keys, k)
 	}
