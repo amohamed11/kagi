@@ -35,7 +35,7 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 	}
 
 	newLeaf := NewLeaf(k, v)
-	parent := db.searchNode(k, db.root)
+	parent := db.searchNode(k, db.root, true)
 	var keyFound string
 
 	for i := 0; i < int(parent.numLeaves); i++ {
@@ -56,7 +56,7 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 }
 
 func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
-	parent := db.searchNode(k, db.root)
+	parent := db.searchNode(k, db.root, true)
 	index := 0
 
 	for index = 0; index < int(parent.numLeaves); index++ {
@@ -73,20 +73,30 @@ func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
 	return nil, KEY_NOT_FOUND
 }
 
-// recursively traverse tree till we find node that has a leaves
-func (db *DB_CONNECTION) searchNode(k string, currentNode *Node) *Node {
+// recursively traverse tree till we find leaf node with given key
+// if isLeaf is false, will search for a branching node that has the given key
+func (db *DB_CONNECTION) searchNode(k string, currentNode *Node, isLeaf bool) *Node {
 	if !currentNode.checkHasLeaf() {
 		i := 0
 		for i = 0; i < int(currentNode.numKeys); i++ {
-			if k < string(currentNode.keys[i]) {
+			if !isLeaf {
+				// searching for a branching node with key k
+				if k == string(currentNode.keys[i]) {
+					return currentNode
+				} else if k == string(currentNode.keys[i]) {
+					n := db.getNodeAt(currentNode.childOffsets[i])
+					return db.searchNode(k, n, isLeaf)
+				}
+
+			} else if k < string(currentNode.keys[i]) {
 				n := db.getNodeAt(currentNode.childOffsets[i])
-				return db.searchNode(k, n)
+				return db.searchNode(k, n, isLeaf)
 			}
 		}
 
 		// search rightmost child
 		n := db.getNodeAt(currentNode.childOffsets[i])
-		return db.searchNode(k, n)
+		return db.searchNode(k, n, isLeaf)
 	}
 
 	return currentNode
@@ -111,8 +121,22 @@ func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
 	db.writeBytesAt(nodeBytes, int64(n.offset))
 }
 
-// TODO delete node
-//func (db *DB_CONNECTION) removeNode(k string) error {}
+// Find node that contain this key as leaf
+// Remove the leaf from the node
+// If
+func (db *DB_CONNECTION) removeLeaf(k string) error {
+	parent := db.searchNode(k, db.root, false)
+	index := 0
+
+	for index = 0; index < int(parent.numLeaves); index++ {
+		// found leaf with correct key or no more leaves left
+		if string(parent.leaves[index].key) == k {
+			break
+		}
+	}
+
+	return nil
+}
 
 func (db *DB_CONNECTION) readBytesAt(b []byte, offset int64) {
 	db.logInfo("reading bytes at offset: %d\n", offset)

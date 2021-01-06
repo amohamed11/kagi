@@ -25,42 +25,12 @@ func randSeq(n int) string {
 	return string(b)
 }
 
-func TestSet1Key(t *testing.T) {
+func TestSet100Keys(t *testing.T) {
 	db := Open(testOptions)
 	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(10)
-	k := seq[0:5]
-	v := seq[5:]
+	seq := randSeq(1000)
 
-	err := db.Set(k, v)
-	db.logError(err)
-	db.Close()
-}
-
-func TestGet1Key(t *testing.T) {
-	db := Open(testOptions)
-	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(10)
-	k := seq[0:5]
-	v := seq[5:]
-
-	err := db.Set(k, v)
-	db.logError(err)
-
-	found, err := db.Get(k)
-	if found != v {
-		t.Error(err)
-		t.Errorf(`actual: "%s", expected: "%s"`, found, v)
-	}
-	db.Close()
-}
-
-func TestSet10Keys(t *testing.T) {
-	db := Open(testOptions)
-	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(100)
-
-	for i := 0; i < 100; i += 10 {
+	for i := 0; i < 1000; i += 10 {
 		k := seq[i : i+5]
 		v := seq[i+5 : i+10]
 
@@ -70,22 +40,53 @@ func TestSet10Keys(t *testing.T) {
 	db.Close()
 }
 
-func TestGet10Keys(t *testing.T) {
+func TestGet100Keys(t *testing.T) {
 	db := Open(testOptions)
 	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(100)
+	seq := randSeq(1000)
 
-	for i := 0; i < 100; i += 10 {
+	for i := 0; i < 1000; i += 10 {
 		k := seq[i : i+5]
 		v := seq[i+5 : i+10]
 
-		err := db.Set(k, v)
-		db.logError(err)
+		err1 := db.Set(k, v)
+		db.logError(err1)
 
-		found, err := db.Get(k)
+		found, err2 := db.Get(k)
 		if found != v {
-			t.Error(err)
+			t.Error(err2)
 			t.Errorf(`actual: "%s", expected: "%s"`, found, v)
+		}
+	}
+	db.Close()
+}
+
+func TestDelete100Keys(t *testing.T) {
+	db := Open(testOptions)
+	rand.Seed(time.Now().UnixNano())
+	seq := randSeq(1000)
+
+	// Set keys to be deleted
+	for i := 0; i < 1000; i += 10 {
+		k := seq[i : i+5]
+		v := seq[i+5 : i+10]
+
+		err := db.Set(k, v)
+		db.logError(err)
+	}
+
+	for i := 0; i < 1000; i += 10 {
+		k := seq[i : i+5]
+
+		err1 := db.Delete(k)
+		t.Error(err1)
+
+		found, err2 := db.Get(k)
+		if found != "" {
+			if err2 != KEY_NOT_FOUND {
+				t.Error(err2)
+			}
+			t.Errorf(`actual: "%s", expected: ""`, found)
 		}
 	}
 	db.Close()

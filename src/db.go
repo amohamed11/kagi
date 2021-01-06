@@ -93,10 +93,10 @@ func (db *DB_CONNECTION) Get(key string) (string, error) {
 	return string(leaf.value), err
 }
 
-// func (db *DB_CONNECTION) Delete(key string) error {
-// 	db.Lock()
-// 	err := db.removeNode(key)
-// 	db.Unlock()
+func (db *DB_CONNECTION) Delete(key string) error {
+	db.Lock()
+	err := db.removeLeaf(key)
+	db.Unlock()
 
-// 	return err
-// }
+	return err
+}
