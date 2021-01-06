@@ -2,8 +2,8 @@ package kagi
 
 // count is saved at 0, and root right after it
 func (db *DB_CONNECTION) loadDB() {
-	db.getCount()
-	db.root = db.getNodeAt(uint32(Int32Size))
+	db.root = db.getNodeAt(0)
+	db.count = db.root.dbCount
 
 	db.logInfo("loaded root node")
 }
@@ -17,7 +17,8 @@ func (db *DB_CONNECTION) createRootNode(k string, v string) {
 	n.leaves[0] = NewLeaf(k, v)
 	n.numLeaves++
 
-	n.offset = uint32(Int32Size)
+	n.dbCount = 1
+	n.offset = 0
 
 	db.root = n
 	db.count = 1
@@ -57,17 +58,13 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 
 func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
 	parent := db.searchNode(k, db.root, true)
-	index := 0
+	db.logInfo("numLeaves: %d, len: %d\n", parent.numLeaves, len(parent.leaves))
 
-	for index = 0; index < int(parent.numLeaves); index++ {
+	for index := 0; index < int(parent.numLeaves); index++ {
 		// found leaf with correct key or no more leaves left
 		if string(parent.leaves[index].key) == k {
-			break
+			return parent.leaves[index], nil
 		}
-	}
-
-	if string(parent.leaves[index].key) == k {
-		return parent.leaves[index], nil
 	}
 
 	return nil, KEY_NOT_FOUND
@@ -110,20 +107,17 @@ func (db *DB_CONNECTION) getNodeAt(offset uint32) *Node {
 	return n
 }
 
-func (db *DB_CONNECTION) getCount() {
-	b := make([]byte, Int32Size)
-	db.readBytesAt(b, 0)
-	db.count = Uint32FromBytes(b)
-}
-
 func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
 	nodeBytes := n.toBytes()
+	if n.offset >= db.count*uint32(BlockSize) {
+		db.count++
+	}
 	db.writeBytesAt(nodeBytes, int64(n.offset))
 }
 
+// TODO
 // Find node that contain this key as leaf
 // Remove the leaf from the node
-// If
 func (db *DB_CONNECTION) removeLeaf(k string) error {
 	parent := db.searchNode(k, db.root, false)
 	index := 0

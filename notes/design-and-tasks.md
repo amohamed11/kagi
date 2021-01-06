@@ -3,10 +3,8 @@ Just my rambling & thoughts on Kagi's design & listing tasks in a somewhat organ
 Most of this is liable to (and will likely) change. Think of this as discovery process document.  
 ## File System
 ### Design:
-- Kagi is not an in-memory storage, and therefore uses a local file for presistence.  
-~~- Since this is a key-value db, JSON format seems like the intuitive fit.~~
-~~- Not utilizing a tree structure for cursor (such as B+Tree), and instead simply accessing JSON data by key.~~  
-- Nevermind, loading entire db into memory sounds like a bad idea. So B+Tree it is.  
+- Kagi is an on-disk key-value store, and therefore uses a local file for presistence.  
+- A tree structure is utilized for organizing & accessing B+Tree.
 
 - For compression, Kagi uses [zstd](https://github.com/DataDog/zstd)
 ### Tasks

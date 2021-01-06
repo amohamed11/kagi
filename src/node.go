@@ -1,14 +1,13 @@
 package kagi
 
 const (
-	Order         int32 = 20   // the upper limit for number of keys that node can hold
-	Degree        int32 = 10   // the lower limit for number of keys, (10-20 keys)
-	BlockSize     int32 = 4096 // max size of a node
-	Int32Size     int32 = 4    // size of uint32 used for offsets in node
-	Int16Size     int32 = 2    // size of uint16 used for flags and counts in nodes
-	MaxKeySize    int32 = 48
-	MaxValueSize  int32 = 144
-	NonHeaderSize int32 = 4080 - (Order * 4) // 4096 - flags(2*2) - counts(2*2) - offsets(2*4) - childOffsets(Order*4)
+	Order        int32 = 20   // the upper limit for number of keys that node can hold
+	BlockSize    int32 = 4096 // max size of a node
+	Int32Size    int32 = 4    // size of uint32 used for offsets in node
+	Int16Size    int32 = 2    // size of uint16 used for flags and counts in nodes
+	MaxKeySize   int32 = 48
+	MaxValueSize int32 = 144
+	// NonHeaderSize int32 = 4080 - (Order * 4) // 4096 - flags(2*2) - counts(2*2) - offsets(2*4) - childOffsets(Order*4)
 )
 
 type Node struct {
@@ -18,6 +17,7 @@ type Node struct {
 	isDeleted uint16
 
 	// Counts
+	dbCount   uint32 // only in root node
 	numKeys   uint16
 	numLeaves uint16
 
@@ -74,6 +74,7 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	// create new node using middle key
 	middleBranchNode := &Node{
 		isRoot:       fullNode.isRoot,
+		dbCount:      fullNode.dbCount,
 		numKeys:      1,
 		offset:       fullNode.offset,
 		parentOffset: fullNode.parentOffset,
@@ -83,12 +84,12 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 
 	// offsets for children are at end of the file
 	middleBranchNode.childOffsets = make([]uint32, 2)
-	middleBranchNode.childOffsets[0] = uint32(BlockSize)*db.count + uint32(Int32Size)
+	middleBranchNode.childOffsets[0] = uint32(BlockSize) * db.count
 	middleBranchNode.childOffsets[1] = middleBranchNode.childOffsets[0] + uint32(BlockSize)
 
 	// create left & right nodes & link old node's children
 	leftChildNode := &Node{
-		numKeys:      uint16(half) + 1,
+		numKeys:      uint16(half),
 		offset:       middleBranchNode.childOffsets[0],
 		parentOffset: middleBranchNode.offset,
 		keys:         leftKey,
@@ -111,13 +112,11 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 		// update parent with the middle key
 		parent := db.getNodeAt(middleBranchNode.parentOffset)
 		parent.addChildNode(db, middleBranchNode)
-		db.writeNodeToFile(parent)
 	}
 
 	// write newly create nodes
 	db.writeNodeToFile(leftChildNode)
 	db.writeNodeToFile(rightChildNode)
-	db.count += 2
 }
 
 func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
@@ -132,6 +131,7 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 	// create new node using middle key
 	middleBranchNode := &Node{
 		isRoot:       fullLeafNode.isRoot,
+		dbCount:      fullLeafNode.dbCount,
 		numKeys:      1,
 		offset:       fullLeafNode.offset,
 		parentOffset: fullLeafNode.parentOffset,
@@ -141,7 +141,7 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 
 	// offsets for left & right splits under the middle
 	middleBranchNode.childOffsets = make([]uint32, 2)
-	middleBranchNode.childOffsets[0] = uint32(BlockSize)*db.count + uint32(Int32Size)
+	middleBranchNode.childOffsets[0] = uint32(BlockSize) * db.count
 	middleBranchNode.childOffsets[1] = middleBranchNode.childOffsets[0] + uint32(BlockSize)
 
 	// create left & right nodes & populate with split leaves
@@ -165,14 +165,11 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 	} else {
 		parent := db.getNodeAt(middleBranchNode.parentOffset)
 		parent.addChildNode(db, middleBranchNode)
-		db.writeNodeToFile(parent)
 	}
 
 	// write newly create nodes
-	// db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftLeafNode)
 	db.writeNodeToFile(rightLeafNode)
-	db.count += 1
 }
 
 // child node should have a single key
@@ -197,6 +194,8 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 
 	if int32(parent.numKeys) >= Order {
 		db.splitNode(parent)
+	} else {
+		db.writeNodeToFile(parent)
 	}
 }
 

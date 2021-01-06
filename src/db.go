@@ -24,13 +24,14 @@ type DB_OPTIONS struct {
 
 func Open(options DB_OPTIONS) *DB_CONNECTION {
 	db := &DB_CONNECTION{}
+	db.logInfo("database connection opened.")
 
 	if options.path != "" {
 		db.filePath = options.path
 	}
 
 	if options.logs != "" {
-		logFile, err := os.OpenFile(options.logs, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+		logFile, err := os.Create(options.logs)
 		if err != nil {
 			log.Println(err.Error())
 		} else {
@@ -39,7 +40,7 @@ func Open(options DB_OPTIONS) *DB_CONNECTION {
 		}
 	}
 
-	file, err1 := os.OpenFile(db.filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+	file, err1 := os.OpenFile(db.filePath, os.O_RDWR|os.O_CREATE, 0666)
 	db.logError(err1)
 
 	db.file = file
@@ -57,9 +58,14 @@ func Open(options DB_OPTIONS) *DB_CONNECTION {
 }
 
 func (db *DB_CONNECTION) Close() {
-	// update count
-	db.writeBytesAt(BytesFromUint32(db.count), 0)
+	db.Lock()
+
 	defer db.file.Close()
+	db.logInfo("database connection ended.")
+
+	db.Unlock()
+
+	db = nil
 }
 
 func (db *DB_CONNECTION) Clear() {
@@ -70,6 +76,8 @@ func (db *DB_CONNECTION) Clear() {
 
 	err := db.file.Truncate(0)
 	db.logError(err)
+
+	db.logInfo("database cleared.")
 
 	db.Unlock()
 }
@@ -99,4 +107,8 @@ func (db *DB_CONNECTION) Delete(key string) error {
 	db.Unlock()
 
 	return err
+}
+
+func (db *DB_CONNECTION) getDbSize() int64 {
+	return int64((db.count + 1) * uint32(BlockSize))
 }

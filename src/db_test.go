@@ -13,6 +13,12 @@ const testPath = "test.kagi"
 var testOptions = DB_OPTIONS{
 	path:  testPath,
 	logs:  "test_logs.txt",
+	clean: false,
+}
+
+var testClearOptions = DB_OPTIONS{
+	path:  testPath,
+	logs:  "test_logs.txt",
 	clean: true,
 }
 
@@ -26,7 +32,7 @@ func randSeq(n int) string {
 }
 
 func TestSet100Keys(t *testing.T) {
-	db := Open(testOptions)
+	db := Open(testClearOptions)
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(1000)
 
@@ -41,16 +47,52 @@ func TestSet100Keys(t *testing.T) {
 }
 
 func TestGet100Keys(t *testing.T) {
-	db := Open(testOptions)
+	db := Open(testClearOptions)
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(1000)
+
+	// Set keys to be getted
+	for i := 0; i < 1000; i += 10 {
+		k := seq[i : i+5]
+		v := seq[i+5 : i+10]
+
+		err := db.Set(k, v)
+		db.logError(err)
+	}
 
 	for i := 0; i < 1000; i += 10 {
 		k := seq[i : i+5]
 		v := seq[i+5 : i+10]
 
-		err1 := db.Set(k, v)
-		db.logError(err1)
+		found, err2 := db.Get(k)
+		if found != v {
+			t.Error(err2)
+			t.Errorf(`actual: "%s", expected: "%s"`, found, v)
+		}
+	}
+	db.Close()
+}
+
+func TestGet100KeysAfterClosing(t *testing.T) {
+	db := Open(testClearOptions)
+	rand.Seed(time.Now().UnixNano())
+	seq := randSeq(1000)
+
+	// Set keys to be getted
+	for i := 0; i < 1000; i += 10 {
+		k := seq[i : i+5]
+		v := seq[i+5 : i+10]
+
+		err := db.Set(k, v)
+		db.logError(err)
+	}
+
+	db.Close()
+	db = Open(testOptions)
+
+	for i := 0; i < 1000; i += 10 {
+		k := seq[i : i+5]
+		v := seq[i+5 : i+10]
 
 		found, err2 := db.Get(k)
 		if found != v {
@@ -62,7 +104,7 @@ func TestGet100Keys(t *testing.T) {
 }
 
 func TestDelete100Keys(t *testing.T) {
-	db := Open(testOptions)
+	db := Open(testClearOptions)
 	rand.Seed(time.Now().UnixNano())
 	seq := randSeq(1000)
 

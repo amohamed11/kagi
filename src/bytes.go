@@ -15,6 +15,10 @@ func NodeFromBytes(b []byte) *Node {
 	offset += Int16Size
 
 	// count
+	if node.isRoot == TRUE {
+		node.dbCount = Uint32FromBytes(b[offset : offset+Int32Size])
+		offset += Int32Size
+	}
 	node.numKeys = Uint16FromBytes(b[offset : offset+Int16Size])
 	offset += Int16Size
 	node.numLeaves = Uint16FromBytes(b[offset : offset+Int16Size])
@@ -77,6 +81,10 @@ func (n *Node) toBytes() []byte {
 	offset += Int16Size
 
 	// count
+	if n.isRoot == TRUE {
+		b = append(b, BytesFromUint32(n.dbCount)...)
+		offset += Int32Size
+	}
 	b = append(b, BytesFromUint16(n.numKeys)...)
 	offset += Int16Size
 	b = append(b, BytesFromUint16(n.numLeaves)...)
