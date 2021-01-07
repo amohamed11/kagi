@@ -17,7 +17,7 @@ type Node struct {
 	isDeleted uint16
 
 	// Counts
-	dbCount   uint32 // only in root node
+	dbCount   uint32
 	numKeys   uint16
 	numLeaves uint16
 
@@ -38,13 +38,6 @@ type Leaf struct {
 	// data
 	key   []byte
 	value []byte
-
-	// TODO Calculate in memory
-	// freeSpace int32
-}
-
-type Data struct {
-	data []byte
 }
 
 func NewLeaf(k string, v string) *Leaf {
@@ -107,7 +100,7 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	rightChildNode.childOffsets = append(rightChildNode.childOffsets, fullNode.childOffsets[half+1:]...)
 
 	if fullNode.isRoot == TRUE {
-		db.writeNodeToFile(middleBranchNode)
+		db.root = middleBranchNode
 	} else {
 		// update parent with the middle key
 		parent := db.getNodeAt(middleBranchNode.parentOffset)
@@ -115,6 +108,7 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	}
 
 	// write newly create nodes
+	db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftChildNode)
 	db.writeNodeToFile(rightChildNode)
 }
@@ -136,8 +130,8 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 		offset:       fullLeafNode.offset,
 		parentOffset: fullLeafNode.parentOffset,
 	}
-	middleBranchNode.keys = make([][]byte, 1)
-	middleBranchNode.keys[0] = middleLeaf.key
+	middleBranchNode.keys = make([][]byte, 0)
+	middleBranchNode.keys = append(middleBranchNode.keys, middleLeaf.key)
 
 	// offsets for left & right splits under the middle
 	middleBranchNode.childOffsets = make([]uint32, 2)
@@ -161,13 +155,14 @@ func (db *DB_CONNECTION) splitLeaves(fullLeafNode *Node) {
 
 	// update parent with the middle key
 	if fullLeafNode.isRoot == TRUE {
-		db.writeNodeToFile(middleBranchNode)
+		db.root = middleBranchNode
 	} else {
 		parent := db.getNodeAt(middleBranchNode.parentOffset)
 		parent.addChildNode(db, middleBranchNode)
 	}
 
 	// write newly create nodes
+	db.writeNodeToFile(middleBranchNode)
 	db.writeNodeToFile(leftLeafNode)
 	db.writeNodeToFile(rightLeafNode)
 }

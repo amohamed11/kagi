@@ -1,6 +1,7 @@
 package kagi
 
 import (
+	"bytes"
 	"encoding/binary"
 )
 
@@ -15,10 +16,8 @@ func NodeFromBytes(b []byte) *Node {
 	offset += Int16Size
 
 	// count
-	if node.isRoot == TRUE {
-		node.dbCount = Uint32FromBytes(b[offset : offset+Int32Size])
-		offset += Int32Size
-	}
+	node.dbCount = Uint32FromBytes(b[offset : offset+Int32Size])
+	offset += Int32Size
 	node.numKeys = Uint16FromBytes(b[offset : offset+Int16Size])
 	offset += Int16Size
 	node.numLeaves = Uint16FromBytes(b[offset : offset+Int16Size])
@@ -41,94 +40,92 @@ func NodeFromBytes(b []byte) *Node {
 
 		node.keys = make([][]byte, node.numKeys)
 		for i := 0; i < int(node.numKeys); i++ {
-			node.keys[i] = b[offset : offset+MaxKeySize]
+			node.keys[i] = bytes.Trim(b[offset:offset+MaxKeySize], "\x00")
 			offset += MaxKeySize
 		}
 	} else {
 		node.leaves = make([]*Leaf, node.numLeaves)
-		leafOffset := int32(0)
 		for i := 0; i < int(node.numLeaves); i++ {
-			node.leaves[i], leafOffset = LeafFromBytes(b[offset+leafOffset:])
+			node.leaves[i] = LeafFromBytes(b[offset:])
+			offset += MaxKeySize + MaxValueSize
 		}
 	}
 
 	return node
 }
 
-func LeafFromBytes(b []byte) (*Leaf, int32) {
+func LeafFromBytes(b []byte) *Leaf {
 	offset := int32(0)
 	leaf := &Leaf{}
 
 	// key
-	leaf.key = b[offset : offset+MaxKeySize]
+	leaf.key = bytes.Trim(b[offset:offset+MaxKeySize], "\x00")
 	offset += MaxKeySize
 
 	// value
-	leaf.value = b[offset : offset+MaxValueSize]
+	leaf.value = bytes.Trim(b[offset:offset+MaxValueSize], "\x00")
 	offset += MaxValueSize
 
-	return leaf, offset
+	return leaf
 }
 
 func (n *Node) toBytes() []byte {
-	b := make([]byte, 0, BlockSize)
+	b := make([]byte, BlockSize)
 	offset := int32(0)
 
 	// flags
-	b = append(b, BytesFromUint16(n.isRoot)...)
+	copy(b[offset:], BytesFromUint16(n.isRoot))
 	offset += Int16Size
-	b = append(b, BytesFromUint16(n.isDeleted)...)
+	copy(b[offset:], BytesFromUint16(n.isDeleted))
 	offset += Int16Size
 
 	// count
-	if n.isRoot == TRUE {
-		b = append(b, BytesFromUint32(n.dbCount)...)
-		offset += Int32Size
-	}
-	b = append(b, BytesFromUint16(n.numKeys)...)
+	copy(b[offset:], BytesFromUint32(n.dbCount))
+	offset += Int32Size
+	copy(b[offset:], BytesFromUint16(n.numKeys))
 	offset += Int16Size
-	b = append(b, BytesFromUint16(n.numLeaves)...)
+	copy(b[offset:], BytesFromUint16(n.numLeaves))
 	offset += Int16Size
 
 	// offsets
-	b = append(b, BytesFromUint32(n.offset)...)
+	copy(b[offset:], BytesFromUint32(n.offset))
 	offset += Int32Size
-	b = append(b, BytesFromUint32(n.parentOffset)...)
+	copy(b[offset:], BytesFromUint32(n.parentOffset))
 	offset += Int32Size
 
 	if !n.checkHasLeaf() {
 		// children offsets
 		for i := 0; i < int(n.numKeys)+1; i++ {
-			b = append(b, BytesFromUint32(n.childOffsets[i])...)
+			copy(b[offset:], BytesFromUint32(n.childOffsets[i]))
 			offset += Int32Size
 		}
 
 		// keys
 		for i := 0; i < int(n.numKeys); i++ {
-			b = append(b, n.keys[i]...)
+			copy(b[offset:], n.keys[i])
 			offset += MaxKeySize
 		}
 	} else {
 		// leaves
 		for i := 0; i < int(n.numLeaves); i++ {
-			b = append(b, n.leaves[i].toBytes()...)
-			offset += MaxValueSize
+			copy(b[offset:], n.leaves[i].toBytes())
+			offset += MaxKeySize + MaxValueSize
 		}
 	}
 
-	return b[:BlockSize]
+	return b
 }
 
 func (l *Leaf) toBytes() []byte {
-	b := make([]byte, 0)
+	b := make([]byte, MaxKeySize+MaxValueSize)
 	offset := int32(0)
 
 	// key
-	b = append(b, l.key...)
+	copy(b[offset:], l.key)
 	offset += MaxKeySize
 
 	// value
-	b = append(b, l.value...)
+	copy(b[offset:], l.value)
 	offset += MaxValueSize
 
 	return b

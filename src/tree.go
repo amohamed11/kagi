@@ -58,7 +58,6 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 
 func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
 	parent := db.searchNode(k, db.root, true)
-	db.logInfo("numLeaves: %d, len: %d\n", parent.numLeaves, len(parent.leaves))
 
 	for index := 0; index < int(parent.numLeaves); index++ {
 		// found leaf with correct key or no more leaves left
