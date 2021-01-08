@@ -20,5 +20,5 @@ Although performance is not the main priority, I still aim to make Kagi reasonab
 Ran using Go's testing library/tool. For benchmarking code check `bench_test.go`.  
 | Operation       | time (ms) |
 |-----------------|----------:|
-| Set (1000 Keys) |      26.7 |
-| Get (1000 Keys) |       2.1 |
+| Set (1000 Keys) |      30.2 |
+| Get (1000 Keys) |      26.5 |
