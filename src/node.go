@@ -91,7 +91,7 @@ func (db *DB_CONNECTION) splitNode(fullNode *Node) {
 	leftChildNode.childOffsets = append(leftChildNode.childOffsets, fullNode.childOffsets[:half+1]...)
 
 	rightChildNode := &Node{
-		numKeys:      uint16(Order - half),
+		numKeys:      uint16(half + 1),
 		offset:       middleBranchNode.childOffsets[1],
 		parentOffset: middleBranchNode.offset,
 		keys:         rightKey,
@@ -174,7 +174,7 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 	for i = 0; i < int(parent.numKeys); i++ {
 		if string(child.keys[0]) < string(parent.keys[i]) {
 			parent.keys = insertIntoKeys(child.keys[0], parent.keys, i)
-			parent.childOffsets = insertIntoOffsets(child.childOffsets[0], parent.childOffsets, i)
+			parent.childOffsets[i] = child.childOffsets[0]
 			parent.childOffsets = insertIntoOffsets(child.childOffsets[1], parent.childOffsets, i+1)
 			break
 		}
@@ -182,7 +182,7 @@ func (parent *Node) addChildNode(db *DB_CONNECTION, child *Node) {
 	// insert at rightmost index
 	if i == int(parent.numKeys) {
 		parent.keys = insertIntoKeys(child.keys[0], parent.keys, i)
-		parent.childOffsets = insertIntoOffsets(child.childOffsets[0], parent.childOffsets, i)
+		parent.childOffsets[i] = child.childOffsets[0]
 		parent.childOffsets = insertIntoOffsets(child.childOffsets[1], parent.childOffsets, i+1)
 	}
 	parent.numKeys++

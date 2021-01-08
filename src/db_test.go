@@ -67,7 +67,7 @@ func TestGet100Keys(t *testing.T) {
 		found, err2 := db.Get(k)
 		if found != v {
 			t.Error(err2)
-			t.Errorf(`actual: "%s", expected: "%s"`, found, v)
+			t.Errorf(`test %d, actual: "%s", expected: "%s"`, i/10, found, v)
 		}
 	}
 	db.Close()
@@ -121,7 +121,9 @@ func TestDelete100Keys(t *testing.T) {
 		k := seq[i : i+5]
 
 		err1 := db.Delete(k)
-		t.Error(err1)
+		if err1 != nil {
+			t.Error(err1)
+		}
 
 		found, err2 := db.Get(k)
 		if found != "" {

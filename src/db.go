@@ -60,6 +60,9 @@ func Open(options DB_OPTIONS) *DB_CONNECTION {
 func (db *DB_CONNECTION) Close() {
 	db.Lock()
 
+	err := db.file.Sync()
+	db.logError(err)
+
 	defer db.file.Close()
 	db.logInfo("database connection ended.")
 
