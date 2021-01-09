@@ -40,7 +40,7 @@ func Open(options DB_OPTIONS) *DB_CONNECTION {
 		}
 	}
 
-	file, err1 := os.OpenFile(db.filePath, os.O_RDWR|os.O_CREATE, 0666)
+	file, err1 := os.OpenFile(db.filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	db.logError(err1)
 
 	db.file = file
@@ -86,17 +86,13 @@ func (db *DB_CONNECTION) Clear() {
 }
 
 func (db *DB_CONNECTION) Set(key string, value string) error {
-	db.Lock()
 	err := db.insert(key, value)
-	db.Unlock()
 
 	return err
 }
 
 func (db *DB_CONNECTION) Get(key string) (string, error) {
-	db.Lock()
 	leaf, err := db.findLeaf(key)
-	db.Unlock()
 
 	if leaf == nil {
 		return "", err
@@ -105,9 +101,7 @@ func (db *DB_CONNECTION) Get(key string) (string, error) {
 }
 
 func (db *DB_CONNECTION) Delete(key string) error {
-	db.Lock()
 	err := db.remove(key)
-	db.Unlock()
 
 	return err
 }

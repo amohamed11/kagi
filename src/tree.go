@@ -1,5 +1,9 @@
 package kagi
 
+import (
+	"github.com/edsrzf/mmap-go"
+)
+
 // count is saved at 0, and root right after it
 func (db *DB_CONNECTION) loadDB() {
 	db.root = db.getNodeAt(0)
@@ -185,16 +189,21 @@ func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
 }
 
 func (db *DB_CONNECTION) readBytesAt(b []byte, offset int64) {
+	db.Lock()
+
 	db.logInfo("reading bytes at offset: %d\n", offset)
+	m, err := mmap.Map(db.file, mmap.RDONLY, 0)
+	db.logError(err)
 
-	_, err1 := db.file.Seek(offset, 0)
-	db.logError(err1)
+	copy(b[0:], m[offset:offset+int64(BlockSize)])
+	m.Unmap()
 
-	_, err2 := db.file.Read(b)
-	db.logError(err2)
+	db.Unlock()
 }
 
 func (db *DB_CONNECTION) writeBytesAt(b []byte, offset int64) {
+	db.Lock()
+
 	db.logInfo("writing bytes at offset: %d\n", offset)
 
 	_, err1 := db.file.Seek(offset, 0)
@@ -206,4 +215,6 @@ func (db *DB_CONNECTION) writeBytesAt(b []byte, offset int64) {
 	if written < len(b) {
 		db.logError(ERROR_WRITING)
 	}
+
+	db.Unlock()
 }
