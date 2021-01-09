@@ -106,7 +106,7 @@ func (db *DB_CONNECTION) Get(key string) (string, error) {
 
 func (db *DB_CONNECTION) Delete(key string) error {
 	db.Lock()
-	err := db.removeLeaf(key)
+	err := db.remove(key)
 	db.Unlock()
 
 	return err

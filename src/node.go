@@ -1,7 +1,10 @@
 package kagi
 
+import "sort"
+
 const (
-	Order        int32 = 20   // the upper limit for number of keys that node can hold
+	Order        int32 = 20   // the upper limit for number of keys/values that node can hold
+	Degree       int32 = 10   // the lower limit for number of keys/values that node must hold
 	BlockSize    int32 = 4096 // max size of a node
 	Int32Size    int32 = 4    // size of uint32 used for offsets in node
 	Int16Size    int32 = 2    // size of uint16 used for flags and counts in nodes
@@ -241,6 +244,16 @@ func insertIntoOffsets(offset uint32, childOffsets []uint32, i int) []uint32 {
 	childOffsets = append(childOffsets[:i+1], childOffsets[i:]...)
 	childOffsets[i] = offset
 	return childOffsets
+}
+
+// coalesces two leaves & sorts them
+func combineLeaves(l1 []*Leaf, l2 []*Leaf) []*Leaf {
+	l := append(l1, l2...)
+	sort.Slice(l, func(a, b int) bool {
+		return string(l[a].key) < string(l[b].key)
+	})
+
+	return l
 }
 
 func (n *Node) checkHasLeaf() bool {

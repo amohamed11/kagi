@@ -6,7 +6,6 @@ Most of this is liable to (and will likely) change. Think of this as discovery p
 - Kagi is an on-disk key-value store, and therefore uses a local file for presistence.  
 - A tree structure is utilized for organizing & accessing B+Tree.
 
-- For compression, Kagi uses [zstd](https://github.com/DataDog/zstd)
 ### Tasks
 - [ ] Open file  
 - [ ] Close file  

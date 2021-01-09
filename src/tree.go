@@ -56,6 +56,64 @@ func (db *DB_CONNECTION) insert(k string, v string) error {
 	return nil
 }
 
+// Find node that contain this key as leaf
+// Remove the leaf from the node
+func (db *DB_CONNECTION) remove(k string) error {
+	var index int
+	newKey := make([]byte, MaxKeySize)
+	neigbhour := &Node{}
+	leafNode := db.searchNode(k, db.root, true)
+
+	for index = 0; index < int(leafNode.numLeaves); index++ {
+		if string(leafNode.leaves[index].key) == k {
+			leafNode.leaves = append(leafNode.leaves[:index], leafNode.leaves[index+1:]...)
+			leafNode.numLeaves--
+			db.writeNodeToFile(leafNode)
+			break
+		}
+	}
+
+	// key was found
+	if index == int(leafNode.numLeaves) {
+		return KEY_NOT_FOUND
+	}
+
+	// handle underflow
+	if leafNode.isRoot == FALSE && int32(leafNode.numLeaves) < Degree {
+		var i int
+		parent := db.getNodeAt(leafNode.parentOffset)
+
+		for i = 0; i < len(parent.childOffsets); i++ {
+			if leafNode.offset == parent.childOffsets[i] {
+				break
+			}
+		}
+
+		if i+1 < len(parent.childOffsets) {
+			neigbhour = db.getNodeAt(parent.childOffsets[i+1])
+		} else {
+			neigbhour = db.getNodeAt(parent.childOffsets[i-1])
+		}
+
+		neigbhour.leaves = combineLeaves(neigbhour.leaves, leafNode.leaves)
+		neigbhour.numLeaves = uint16(len(neigbhour.leaves))
+		newKey = neigbhour.leaves[0].key
+
+		if int32(neigbhour.numLeaves) >= Order {
+			db.splitLeaves(neigbhour)
+		} else {
+			db.writeNodeToFile(neigbhour)
+		}
+	}
+
+	// handle branching key deletion & rebalancing
+	if leafNode.isRoot == FALSE && index == 0 {
+		db.replaceBranchingKey(k, string(newKey))
+	}
+
+	return nil
+}
+
 func (db *DB_CONNECTION) findLeaf(k string) (*Leaf, error) {
 	parent := db.searchNode(k, db.root, true)
 
@@ -98,6 +156,18 @@ func (db *DB_CONNECTION) searchNode(k string, currentNode *Node, isLeaf bool) *N
 	return currentNode
 }
 
+func (db *DB_CONNECTION) replaceBranchingKey(oldKey string, newKey string) {
+	n := db.searchNode(oldKey, db.root, false)
+
+	for i := 0; i < len(n.keys); i++ {
+		if string(n.keys[i]) == oldKey {
+			n.keys[i] = []byte(newKey)
+			db.writeNodeToFile(n)
+			break
+		}
+	}
+}
+
 func (db *DB_CONNECTION) getNodeAt(offset uint32) *Node {
 	b := make([]byte, BlockSize)
 	db.readBytesAt(b, int64(offset))
@@ -112,23 +182,6 @@ func (db *DB_CONNECTION) writeNodeToFile(n *Node) {
 		db.count++
 	}
 	db.writeBytesAt(nodeBytes, int64(n.offset))
-}
-
-// TODO
-// Find node that contain this key as leaf
-// Remove the leaf from the node
-func (db *DB_CONNECTION) removeLeaf(k string) error {
-	parent := db.searchNode(k, db.root, false)
-	index := 0
-
-	for index = 0; index < int(parent.numLeaves); index++ {
-		// found leaf with correct key or no more leaves left
-		if string(parent.leaves[index].key) == k {
-			break
-		}
-	}
-
-	return nil
 }
 
 func (db *DB_CONNECTION) readBytesAt(b []byte, offset int64) {
