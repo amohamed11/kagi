@@ -34,11 +34,12 @@ func randSeq(n int) string {
 func TestSet100Keys(t *testing.T) {
 	db := Open(testClearOptions)
 	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(1000)
+	seq := randSeq(19200)
 
-	for i := 0; i < 1000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
+	// Set keys to be getted
+	for i := 0; i < 100; i += 192 {
+		k := seq[i : i+44]
+		v := seq[i+44 : i+144]
 
 		err := db.Set(k, v)
 		db.logError(err)
@@ -49,20 +50,19 @@ func TestSet100Keys(t *testing.T) {
 func TestGet100Keys(t *testing.T) {
 	db := Open(testClearOptions)
 	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(1000)
+	seq := randSeq(19200)
 
-	// Set keys to be getted
-	for i := 0; i < 1000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
+	for i := 0; i < 100; i += 192 {
+		k := seq[i : i+44]
+		v := seq[i+44 : i+144]
 
 		err := db.Set(k, v)
 		db.logError(err)
 	}
 
-	for i := 0; i < 1000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
+	for i := 0; i < 100; i += 192 {
+		k := seq[i : i+44]
+		v := seq[i+44 : i+144]
 
 		found, err2 := db.Get(k)
 		if found != v {
@@ -76,12 +76,11 @@ func TestGet100Keys(t *testing.T) {
 func TestGet100KeysAfterClosing(t *testing.T) {
 	db := Open(testClearOptions)
 	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(1000)
+	seq := randSeq(19200)
 
-	// Set keys to be getted
-	for i := 0; i < 1000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
+	for i := 0; i < 100; i += 192 {
+		k := seq[i : i+44]
+		v := seq[i+44 : i+144]
 
 		err := db.Set(k, v)
 		db.logError(err)
@@ -90,9 +89,9 @@ func TestGet100KeysAfterClosing(t *testing.T) {
 	db.Close()
 	db = Open(testOptions)
 
-	for i := 0; i < 1000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
+	for i := 0; i < 100; i += 192 {
+		k := seq[i : i+44]
+		v := seq[i+44 : i+144]
 
 		found, err2 := db.Get(k)
 		if found != v {
@@ -106,19 +105,19 @@ func TestGet100KeysAfterClosing(t *testing.T) {
 func TestDelete100Keys(t *testing.T) {
 	db := Open(testClearOptions)
 	rand.Seed(time.Now().UnixNano())
-	seq := randSeq(1000)
+	seq := randSeq(19200)
 
 	// Set keys to be deleted
-	for i := 0; i < 1000; i += 10 {
-		k := seq[i : i+5]
-		v := seq[i+5 : i+10]
+	for i := 0; i < 100; i += 192 {
+		k := seq[i : i+44]
+		v := seq[i+44 : i+144]
 
 		err := db.Set(k, v)
 		db.logError(err)
 	}
 
-	for i := 0; i < 1000; i += 10 {
-		k := seq[i : i+5]
+	for i := 0; i < 100; i += 192 {
+		k := seq[i : i+44]
 
 		err1 := db.Delete(k)
 		if err1 != nil {
